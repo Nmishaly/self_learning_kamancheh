@@ -79,7 +79,7 @@ export default function SongInstructor({ stage, song, onComplete, onExit }) {
 
   const audioCtxRef = useRef(null)
   const rafRef = useRef(null)
-  const startWallRef = useRef(0) // performance.now() when synth playback (re)started
+  const startWallRef = useRef(0) // audio-clock anchor: ctx.currentTime at elapsed 0
   const seekRef = useRef(0) // elapsed-seconds offset (synth)
   const lastTriggeredRef = useRef(-1)
   const videoRef = useRef(null)
@@ -102,24 +102,59 @@ export default function SongInstructor({ stage, song, onComplete, onExit }) {
     return audioCtxRef.current
   }
 
-  // A clean digital synth tone that sustains for (roughly) the note's duration,
-  // with a quick attack and a short release so notes flow into one another.
+  // A bowed-string (Kamancheh-like) tone: a sawtooth (rich, string-like) mixed
+  // with a triangle (warm body), softened by a low-pass filter, shaped with a
+  // gentle bow attack, a settle to sustain, and a short release.
   function playTone(frequency, duration = NOTE_SECONDS) {
     const ctx = ensureCtx()
     const now = ctx.currentTime
     // Clamp so very short gaps still sound and very long gaps don't drone.
     const dur = Math.min(Math.max(duration, 0.12), 2.5)
-    const attack = Math.min(0.02, dur * 0.2)
-    const osc = ctx.createOscillator()
-    const gain = ctx.createGain()
-    osc.type = 'triangle'
-    osc.frequency.value = frequency
-    gain.gain.setValueAtTime(0.0001, now)
-    gain.gain.exponentialRampToValueAtTime(SYNTH_GAIN, now + attack)
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + dur * 0.95)
-    osc.connect(gain).connect(ctx.destination)
-    osc.start(now)
-    osc.stop(now + dur)
+    const peak = SYNTH_GAIN
+    const sustain = SYNTH_GAIN * 0.7
+    const attack = Math.min(0.06, dur * 0.25) // soft bow onset, not a pluck
+    const decay = Math.min(0.1, dur * 0.25)
+    const release = Math.min(0.08, dur * 0.25)
+
+    const saw = ctx.createOscillator()
+    saw.type = 'sawtooth'
+    saw.frequency.value = frequency
+    const tri = ctx.createOscillator()
+    tri.type = 'triangle'
+    tri.frequency.value = frequency
+
+    // Mix: mostly sawtooth for the bowed-string edge, triangle for warmth.
+    const sawGain = ctx.createGain()
+    sawGain.gain.value = 0.6
+    const triGain = ctx.createGain()
+    triGain.gain.value = 0.4
+
+    // Tame the sawtooth's harsh upper harmonics so it reads as bowed, not buzzy.
+    const filter = ctx.createBiquadFilter()
+    filter.type = 'lowpass'
+    filter.frequency.value = 3200
+    filter.Q.value = 0.7
+
+    // Bowed-string amplitude envelope (attack → decay → sustain → release).
+    const amp = ctx.createGain()
+    amp.gain.setValueAtTime(0.0001, now)
+    amp.gain.linearRampToValueAtTime(peak, now + attack)
+    amp.gain.exponentialRampToValueAtTime(sustain, now + attack + decay)
+    const releaseStart = Math.max(now + attack + decay, now + dur - release)
+    amp.gain.setValueAtTime(sustain, releaseStart)
+    amp.gain.exponentialRampToValueAtTime(0.0001, now + dur)
+
+    saw.connect(sawGain)
+    tri.connect(triGain)
+    sawGain.connect(filter)
+    triGain.connect(filter)
+    filter.connect(amp)
+    amp.connect(ctx.destination)
+
+    saw.start(now)
+    tri.start(now)
+    saw.stop(now + dur)
+    tri.stop(now + dur)
   }
 
   function stopLoop() {
@@ -130,10 +165,15 @@ export default function SongInstructor({ stage, song, onComplete, onExit }) {
   }
 
   function frame() {
+    // Synth playback is timed against the AudioContext clock (sample-accurate,
+    // in real seconds), so the highlight stays locked to what's sounding.
+    const ctx = audioCtxRef.current
     const elapsed =
       isLocalVideo && videoRef.current
         ? videoRef.current.currentTime
-        : seekRef.current + (performance.now() - startWallRef.current) / 1000
+        : ctx
+          ? ctx.currentTime - startWallRef.current
+          : seekRef.current
 
     if (elapsed >= total) {
       finishPlayback()
@@ -173,7 +213,8 @@ export default function SongInstructor({ stage, song, onComplete, onExit }) {
     } else {
       const ctx = ensureCtx()
       if (ctx.state === 'suspended') await ctx.resume()
-      startWallRef.current = performance.now()
+      // Anchor so that elapsed = ctx.currentTime - startWallRef, resuming from seek.
+      startWallRef.current = ctx.currentTime - seekRef.current
     }
 
     setIsPlaying(true)
@@ -186,7 +227,8 @@ export default function SongInstructor({ stage, song, onComplete, onExit }) {
     if (isLocalVideo && videoRef.current) {
       videoRef.current.pause()
     } else {
-      seekRef.current += (performance.now() - startWallRef.current) / 1000
+      const ctx = audioCtxRef.current
+      if (ctx) seekRef.current = ctx.currentTime - startWallRef.current
     }
     setIsPlaying(false)
   }
@@ -210,8 +252,12 @@ export default function SongInstructor({ stage, song, onComplete, onExit }) {
     seekRef.current = time
     lastTriggeredRef.current = -1
     setCurrentIndex(clamped)
-    if (isLocalVideo && videoRef.current) videoRef.current.currentTime = time
-    if (isPlaying) startWallRef.current = performance.now()
+    if (isLocalVideo && videoRef.current) {
+      videoRef.current.currentTime = time
+    } else if (isPlaying) {
+      const ctx = audioCtxRef.current
+      if (ctx) startWallRef.current = ctx.currentTime - time
+    }
   }
 
   // Skip by musical phrase (tetrachord / four-note group), not single notes.

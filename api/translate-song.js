@@ -41,7 +41,12 @@ Rules:
   e.g. "קשת כפולה", "לגאטו", "קשת ארוכה ויציבה", "סטקאטו".
 - Where stylistically appropriate, weave in advanced ornaments (עיטורים) in the
   instruction, e.g. "טריל", "מורדנט", "גליסנדו", "תפיסה" (grace note).
-- "time" is the elapsed seconds from the start of the piece (start at 0 and increase).
+- First estimate the song's real tempo in BPM (from its title and style) and
+  derive every "time" value from it: a quarter note lasts 60/BPM seconds, an
+  eighth note half that, a half note double. Space the timestamps to match the
+  actual rhythm and speed of the melody — faster songs have notes closer
+  together, slower songs further apart. Do NOT default to a fixed one-second
+  grid. "time" is elapsed seconds from the start (begin at 0 and strictly increase).
 - Stay within the given maqam's scale.
 - Return between 8 and 24 phrases.`
 
