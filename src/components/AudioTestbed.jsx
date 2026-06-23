@@ -1,141 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
+import {
+  autoCorrelate,
+  centsToColor,
+  frequencyToNote,
+  OPEN_STRINGS,
+} from '../audio/pitch.js'
 import './AudioTestbed.css'
 
-// Number of samples we analyse per frame. A power of two is required by the
-// Web Audio AnalyserNode. 2048 gives a good balance of accuracy vs. speed.
+// Number of samples analysed per frame (power of two required by AnalyserNode).
 const FFT_SIZE = 2048
-
-// Below this volume (root-mean-square) we treat the signal as silence and
-// don't report a pitch, so background noise doesn't produce junk readings.
-const SILENCE_RMS = 0.01
-
-// English letter names and their fixed-do Solfège equivalents, indexed by
-// semitone within an octave (0 = C).
-const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
-const SOLFEGE_NAMES = ['Do', 'Do#', 'Re', 'Re#', 'Mi', 'Fa', 'Fa#', 'Sol', 'Sol#', 'La', 'La#', 'Si']
-
-// The four open strings of the Azerbaijani Kamancheh, in scientific pitch
-// notation. We highlight these so the player can recognise them at a glance.
-const OPEN_STRINGS = ['A3', 'D4', 'A4', 'D5']
-
-// A pitch is considered "perfectly in tune" at 0 cents and fully out of tune
-// at this many cents away — used to drive the red → green tuning colour.
-const CENTS_TOLERANCE = 50
-
-/**
- * Map a cents deviation to a tuning colour using HSL:
- *   0 cents  -> hue 120 (vibrant green, in tune)
- *  25 cents  -> hue 60  (yellow)
- *  50+ cents -> hue 0   (red, out of tune)
- * `lightness` lets callers build gradients/glows from the same hue.
- */
-function centsToColor(cents, lightness = 50) {
-  const offset = Math.min(Math.abs(cents), CENTS_TOLERANCE)
-  const hue = (1 - offset / CENTS_TOLERANCE) * 120
-  return `hsl(${hue}, 85%, ${lightness}%)`
-}
-
-/**
- * Estimate the fundamental frequency of a time-domain buffer using
- * autocorrelation. Returns the frequency in Hz, or -1 if no clear pitch
- * (e.g. silence or noise) is found.
- *
- * This is a lightly adapted version of the well-known ACF2+ algorithm.
- */
-function autoCorrelate(buffer, sampleRate) {
-  const size = buffer.length
-
-  // 1. Bail out early if the signal is too quiet to be a real note.
-  let rms = 0
-  for (let i = 0; i < size; i++) {
-    rms += buffer[i] * buffer[i]
-  }
-  rms = Math.sqrt(rms / size)
-  if (rms < SILENCE_RMS) return -1
-
-  // 2. Trim quiet edges of the buffer to focus on the sustained tone.
-  let start = 0
-  let end = size - 1
-  const threshold = 0.2
-  for (let i = 0; i < size / 2; i++) {
-    if (Math.abs(buffer[i]) < threshold) {
-      start = i
-      break
-    }
-  }
-  for (let i = 1; i < size / 2; i++) {
-    if (Math.abs(buffer[size - i]) < threshold) {
-      end = size - i
-      break
-    }
-  }
-
-  const trimmed = buffer.slice(start, end)
-  const trimmedSize = trimmed.length
-
-  // 3. Compute the autocorrelation: how well the signal matches a
-  //    time-shifted copy of itself at each possible lag.
-  const correlations = new Array(trimmedSize).fill(0)
-  for (let lag = 0; lag < trimmedSize; lag++) {
-    for (let i = 0; i < trimmedSize - lag; i++) {
-      correlations[lag] += trimmed[i] * trimmed[i + lag]
-    }
-  }
-
-  // 4. Find the first dip, then the highest peak after it — that peak's
-  //    position (the lag) corresponds to one period of the waveform.
-  let dip = 0
-  while (correlations[dip] > correlations[dip + 1]) dip++
-
-  let maxValue = -1
-  let maxLag = -1
-  for (let i = dip; i < trimmedSize; i++) {
-    if (correlations[i] > maxValue) {
-      maxValue = correlations[i]
-      maxLag = i
-    }
-  }
-
-  let period = maxLag
-
-  // 5. Parabolic interpolation around the peak for sub-sample precision.
-  const x1 = correlations[period - 1]
-  const x2 = correlations[period]
-  const x3 = correlations[period + 1]
-  const a = (x1 + x3 - 2 * x2) / 2
-  const b = (x3 - x1) / 2
-  if (a) period = period - b / (2 * a)
-
-  if (period <= 0) return -1
-  return sampleRate / period
-}
-
-/**
- * Convert a frequency in Hz to the nearest musical note.
- * Returns the English letter, Solfège name, octave, a combined
- * "Solfège / English" label, the scientific name (e.g. "D4"), the cents
- * offset from perfect pitch, and whether it is a Kamancheh open string.
- */
-function frequencyToNote(frequency) {
-  // MIDI note number, where A4 (440 Hz) = 69.
-  const noteNumber = 12 * Math.log2(frequency / 440) + 69
-  const rounded = Math.round(noteNumber)
-  const semitone = ((rounded % 12) + 12) % 12
-  const english = NOTE_NAMES[semitone]
-  const solfege = SOLFEGE_NAMES[semitone]
-  const octave = Math.floor(rounded / 12) - 1
-  const scientific = `${english}${octave}`
-  const cents = Math.round((noteNumber - rounded) * 100)
-  return {
-    english,
-    solfege,
-    octave,
-    scientific,
-    combined: `${solfege} / ${english}`,
-    cents,
-    isOpenString: OPEN_STRINGS.includes(scientific),
-  }
-}
 
 // How close (in cents) counts as "in tune" while holding a target, and the
 // default time it must be sustained before the target is considered passed.

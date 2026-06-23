@@ -73,10 +73,11 @@ export const STAGES = [
     id: 'stage-4',
     number: 4,
     title: 'Traditional Melodies',
-    summary: 'Play a simplified arrangement of the folk song “Sarı Gelin”.',
-    // A melody stage is practised note-by-note against a moving cursor rather
-    // than as isolated targets.
-    type: 'melody',
+    summary: 'Learn the Ajam / Mahur scale with your teacher’s methodology.',
+    // A "song" stage is driven by the SongInstructor, which carries its own
+    // asset (Hebrew cues, fingering and technique checks). The Sarı Gelin
+    // melody below is kept for the melody-player view and future songs.
+    type: 'song',
     melody: buildMelody([
       // Phrase 1 — descending opening line.
       'A4', 'A4', 'G4', 'F4', 'G4', 'A4',

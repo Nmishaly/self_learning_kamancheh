@@ -2,7 +2,14 @@ import { useEffect, useState } from 'react'
 import { STAGES } from '../data/curriculum.js'
 import StagePractice from './StagePractice.jsx'
 import MelodyPlayer from './MelodyPlayer.jsx'
+import SongInstructor from './SongInstructor.jsx'
 import './CurriculumRoadmap.css'
+
+// Which practice view drives each stage `type` (defaults to StagePractice).
+const VIEW_BY_TYPE = {
+  melody: MelodyPlayer,
+  song: SongInstructor,
+}
 
 const STORAGE_KEY = 'kamancheh-progress'
 
@@ -78,7 +85,7 @@ export default function CurriculumRoadmap() {
 
   const activeStage = STAGES.find((s) => s.id === activeStageId)
   if (activeStage) {
-    const PracticeView = activeStage.type === 'melody' ? MelodyPlayer : StagePractice
+    const PracticeView = VIEW_BY_TYPE[activeStage.type] || StagePractice
     return (
       <PracticeView
         stage={activeStage}
