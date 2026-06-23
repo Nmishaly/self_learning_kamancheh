@@ -1,0 +1,120 @@
+.testbed {
+  width: 100%;
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 24px 20px calc(24px + env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.testbed__header {
+  text-align: center;
+}
+
+.testbed__title {
+  margin: 0;
+  font-size: 1.4rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.testbed__subtitle {
+  margin: 4px 0 0;
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+
+.testbed__readout {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 24px 16px;
+  text-align: center;
+}
+
+.testbed__freq {
+  font-size: 3rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  color: var(--text);
+}
+
+.testbed__unit {
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--text-dim);
+  margin-left: 6px;
+}
+
+.testbed__note {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-height: 2.6em;
+  justify-content: center;
+}
+
+.testbed__note-label {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.testbed__cents {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.testbed__note-idle {
+  font-size: 0.95rem;
+  color: var(--text-dim);
+}
+
+.testbed__canvas {
+  width: 100%;
+  height: 160px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  display: block;
+}
+
+.testbed__error {
+  margin: 0;
+  padding: 12px 14px;
+  font-size: 0.85rem;
+  color: #fda4af;
+  background: rgba(244, 63, 94, 0.08);
+  border: 1px solid rgba(244, 63, 94, 0.25);
+  border-radius: 12px;
+  text-align: center;
+}
+
+.testbed__button {
+  width: 100%;
+  padding: 16px;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #07120f;
+  background: var(--accent);
+  border: none;
+  border-radius: 14px;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.05s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.testbed__button:active {
+  transform: scale(0.99);
+}
+
+.testbed__button--stop {
+  color: var(--text);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+}
