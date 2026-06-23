@@ -9,7 +9,14 @@ const FFT_SIZE = 2048
 // don't report a pitch, so background noise doesn't produce junk readings.
 const SILENCE_RMS = 0.01
 
+// English letter names and their fixed-do Solfège equivalents, indexed by
+// semitone within an octave (0 = C).
 const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
+const SOLFEGE_NAMES = ['Do', 'Do#', 'Re', 'Re#', 'Mi', 'Fa', 'Fa#', 'Sol', 'Sol#', 'La', 'La#', 'Si']
+
+// The four open strings of the Azerbaijani Kamancheh, in scientific pitch
+// notation. We highlight these so the player can recognise them at a glance.
+const OPEN_STRINGS = ['A3', 'D4', 'A4', 'D5']
 
 /**
  * Estimate the fundamental frequency of a time-domain buffer using
@@ -86,15 +93,31 @@ function autoCorrelate(buffer, sampleRate) {
   return sampleRate / period
 }
 
-/** Convert a frequency in Hz to the nearest musical note and cents offset. */
+/**
+ * Convert a frequency in Hz to the nearest musical note.
+ * Returns the English letter, Solfège name, octave, a combined
+ * "Solfège / English" label, the scientific name (e.g. "D4"), the cents
+ * offset from perfect pitch, and whether it is a Kamancheh open string.
+ */
 function frequencyToNote(frequency) {
   // MIDI note number, where A4 (440 Hz) = 69.
   const noteNumber = 12 * Math.log2(frequency / 440) + 69
   const rounded = Math.round(noteNumber)
-  const name = NOTE_NAMES[((rounded % 12) + 12) % 12]
+  const semitone = ((rounded % 12) + 12) % 12
+  const english = NOTE_NAMES[semitone]
+  const solfege = SOLFEGE_NAMES[semitone]
   const octave = Math.floor(rounded / 12) - 1
+  const scientific = `${english}${octave}`
   const cents = Math.round((noteNumber - rounded) * 100)
-  return { label: `${name}${octave}`, cents }
+  return {
+    english,
+    solfege,
+    octave,
+    scientific,
+    combined: `${solfege} / ${english}`,
+    cents,
+    isOpenString: OPEN_STRINGS.includes(scientific),
+  }
 }
 
 export default function AudioTestbed() {
@@ -250,7 +273,17 @@ export default function AudioTestbed() {
         <div className="testbed__note">
           {note ? (
             <>
-              <span className="testbed__note-label">{note.label}</span>
+              <span
+                className={`testbed__note-label ${
+                  note.isOpenString ? 'testbed__note-label--open' : ''
+                }`}
+              >
+                {note.combined}
+                <span className="testbed__octave">{note.octave}</span>
+              </span>
+              {note.isOpenString && (
+                <span className="testbed__open-badge">Open string</span>
+              )}
               <span className="testbed__cents">
                 {note.cents > 0 ? `+${note.cents}` : note.cents} cents
               </span>
@@ -260,6 +293,22 @@ export default function AudioTestbed() {
               {isListening ? 'Play a note…' : 'Not listening'}
             </span>
           )}
+        </div>
+      </div>
+
+      <div className="testbed__strings">
+        <span className="testbed__strings-label">Open strings</span>
+        <div className="testbed__strings-list">
+          {OPEN_STRINGS.map((s) => (
+            <span
+              key={s}
+              className={`testbed__string ${
+                note && note.scientific === s ? 'testbed__string--active' : ''
+              }`}
+            >
+              {s}
+            </span>
+          ))}
         </div>
       </div>
 
