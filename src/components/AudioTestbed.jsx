@@ -18,6 +18,23 @@ const SOLFEGE_NAMES = ['Do', 'Do#', 'Re', 'Re#', 'Mi', 'Fa', 'Fa#', 'Sol', 'Sol#
 // notation. We highlight these so the player can recognise them at a glance.
 const OPEN_STRINGS = ['A3', 'D4', 'A4', 'D5']
 
+// A pitch is considered "perfectly in tune" at 0 cents and fully out of tune
+// at this many cents away — used to drive the red → green tuning colour.
+const CENTS_TOLERANCE = 50
+
+/**
+ * Map a cents deviation to a tuning colour using HSL:
+ *   0 cents  -> hue 120 (vibrant green, in tune)
+ *  25 cents  -> hue 60  (yellow)
+ *  50+ cents -> hue 0   (red, out of tune)
+ * `lightness` lets callers build gradients/glows from the same hue.
+ */
+function centsToColor(cents, lightness = 50) {
+  const offset = Math.min(Math.abs(cents), CENTS_TOLERANCE)
+  const hue = (1 - offset / CENTS_TOLERANCE) * 120
+  return `hsl(${hue}, 85%, ${lightness}%)`
+}
+
 /**
  * Estimate the fundamental frequency of a time-domain buffer using
  * autocorrelation. Returns the frequency in Hz, or -1 if no clear pitch
@@ -265,35 +282,46 @@ export default function AudioTestbed() {
         <p className="testbed__subtitle">Pitch detection &amp; live waveform</p>
       </header>
 
-      <div className="testbed__readout">
-        <div className="testbed__freq">
-          {frequency ? frequency.toFixed(1) : '—'}
-          <span className="testbed__unit">Hz</span>
-        </div>
-        <div className="testbed__note">
+      <div className="testbed__indicator-wrap">
+        <div
+          className="testbed__indicator"
+          style={
+            note
+              ? {
+                  background: `radial-gradient(circle at 50% 38%, ${centsToColor(
+                    note.cents,
+                    60,
+                  )}, ${centsToColor(note.cents, 38)})`,
+                  boxShadow: `0 0 70px 6px ${centsToColor(note.cents, 50)}`,
+                  borderColor: centsToColor(note.cents, 55),
+                }
+              : undefined
+          }
+        >
           {note ? (
             <>
-              <span
-                className={`testbed__note-label ${
-                  note.isOpenString ? 'testbed__note-label--open' : ''
-                }`}
-              >
+              <span className="testbed__indicator-note">
                 {note.combined}
                 <span className="testbed__octave">{note.octave}</span>
+              </span>
+              <span className="testbed__indicator-cents">
+                {note.cents > 0 ? `+${note.cents}` : note.cents} cents
               </span>
               {note.isOpenString && (
                 <span className="testbed__open-badge">Open string</span>
               )}
-              <span className="testbed__cents">
-                {note.cents > 0 ? `+${note.cents}` : note.cents} cents
-              </span>
             </>
           ) : (
-            <span className="testbed__note-idle">
+            <span className="testbed__indicator-idle">
               {isListening ? 'Play a note…' : 'Not listening'}
             </span>
           )}
         </div>
+      </div>
+
+      <div className="testbed__freq">
+        {frequency ? frequency.toFixed(1) : '—'}
+        <span className="testbed__unit">Hz</span>
       </div>
 
       <div className="testbed__strings">

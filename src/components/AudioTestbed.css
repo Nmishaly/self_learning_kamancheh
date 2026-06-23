@@ -25,16 +25,57 @@
   color: var(--text-dim);
 }
 
-.testbed__readout {
+/* Large tuning indicator — its colour is set inline from the cents deviation. */
+.testbed__indicator-wrap {
+  display: flex;
+  justify-content: center;
+  padding: 12px 0;
+}
+
+.testbed__indicator {
+  width: 220px;
+  height: 220px;
+  max-width: 70vw;
+  max-height: 70vw;
+  border-radius: 50%;
+  border: 2px solid var(--border);
   background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  padding: 24px 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   text-align: center;
+  /* Smoothly animate colour, glow and border as the pitch drifts in and out. */
+  transition: background 0.12s linear, box-shadow 0.12s linear,
+    border-color 0.12s linear;
+}
+
+.testbed__indicator-note {
+  font-size: 2.1rem;
+  font-weight: 700;
+  color: #07120f;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+}
+
+.testbed__indicator-cents {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: rgba(7, 18, 15, 0.8);
+  font-variant-numeric: tabular-nums;
+}
+
+.testbed__indicator-idle {
+  font-size: 1rem;
+  color: var(--text-dim);
 }
 
 .testbed__freq {
-  font-size: 3rem;
+  text-align: center;
+  font-size: 2rem;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   line-height: 1;
@@ -42,41 +83,16 @@
 }
 
 .testbed__unit {
-  font-size: 1rem;
+  font-size: 0.95rem;
   font-weight: 500;
   color: var(--text-dim);
   margin-left: 6px;
 }
 
-.testbed__note {
-  margin-top: 12px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-  min-height: 2.6em;
-  justify-content: center;
-}
-
-.testbed__note-label {
-  font-size: 1.5rem;
-  font-weight: 600;
-  color: var(--accent);
-  display: inline-flex;
-  align-items: baseline;
-  gap: 3px;
-}
-
 .testbed__octave {
   font-size: 0.9rem;
   font-weight: 500;
-  color: var(--text-dim);
-}
-
-/* When the detected note is one of the Kamancheh open strings, make it pop. */
-.testbed__note-label--open {
-  color: #fbbf24;
-  text-shadow: 0 0 18px rgba(251, 191, 36, 0.45);
+  opacity: 0.7;
 }
 
 .testbed__open-badge {
@@ -84,22 +100,11 @@
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: #fbbf24;
-  background: rgba(251, 191, 36, 0.12);
-  border: 1px solid rgba(251, 191, 36, 0.35);
+  color: #07120f;
+  background: rgba(7, 18, 15, 0.18);
+  border: 1px solid rgba(7, 18, 15, 0.3);
   border-radius: 999px;
   padding: 2px 10px;
-}
-
-.testbed__cents {
-  font-size: 0.8rem;
-  color: var(--text-dim);
-  font-variant-numeric: tabular-nums;
-}
-
-.testbed__note-idle {
-  font-size: 0.95rem;
-  color: var(--text-dim);
 }
 
 .testbed__strings {
