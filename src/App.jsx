@@ -1,9 +1,9 @@
-import AudioTestbed from './components/AudioTestbed.jsx'
+import CurriculumRoadmap from './components/CurriculumRoadmap.jsx'
 
 export default function App() {
   return (
     <main>
-      <AudioTestbed />
+      <CurriculumRoadmap />
     </main>
   )
 }

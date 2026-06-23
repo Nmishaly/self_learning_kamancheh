@@ -137,11 +137,29 @@ function frequencyToNote(frequency) {
   }
 }
 
-export default function AudioTestbed() {
+// How close (in cents) counts as "in tune" while holding a target, and how
+// long that must be sustained before the target is considered passed.
+const IN_TUNE_CENTS = 15
+const HOLD_MS = 1200
+
+/**
+ * Reusable pitch tuner with a colour-changing accuracy indicator and live
+ * waveform.
+ *
+ * Props:
+ *   target  – optional { id, label, frequency }. When given, the indicator is
+ *             calibrated to that exact frequency (microtonal-aware), so it works
+ *             for notes like the Shur E half-flat that aren't on a piano.
+ *   onPass  – optional callback fired once when the player holds `target` in
+ *             tune long enough to pass it.
+ */
+export default function AudioTestbed({ target = null, onPass }) {
   const [isListening, setIsListening] = useState(false)
-  const [frequency, setFrequency] = useState(null)
-  const [note, setNote] = useState(null)
+  const [reading, setReading] = useState(null)
+  const [holdProgress, setHoldProgress] = useState(0)
   const [error, setError] = useState(null)
+
+  const practiceMode = Boolean(target)
 
   // Audio + animation handles live in refs so they survive re-renders
   // without triggering them.
@@ -151,6 +169,23 @@ export default function AudioTestbed() {
   const rafRef = useRef(null)
   const bufferRef = useRef(null)
   const canvasRef = useRef(null)
+
+  // Latest props mirrored into refs so the long-running rAF loop never reads
+  // stale values from the closure it was started with.
+  const targetRef = useRef(target)
+  const onPassRef = useRef(onPass)
+  useEffect(() => {
+    targetRef.current = target
+  }, [target])
+  useEffect(() => {
+    onPassRef.current = onPass
+  }, [onPass])
+
+  // Hold-to-pass bookkeeping.
+  const activeTargetIdRef = useRef(null)
+  const holdMsRef = useRef(0)
+  const passedRef = useRef(false)
+  const lastTsRef = useRef(0)
 
   // Always tear everything down when the component unmounts.
   useEffect(() => {
@@ -197,7 +232,7 @@ export default function AudioTestbed() {
     ctx.stroke()
   }
 
-  function tick() {
+  function tick(timestamp) {
     const analyser = analyserRef.current
     const buffer = bufferRef.current
     const audioContext = audioContextRef.current
@@ -206,13 +241,54 @@ export default function AudioTestbed() {
     analyser.getFloatTimeDomainData(buffer)
     drawWaveform(buffer)
 
+    const activeTarget = targetRef.current
+
+    // Reset hold tracking whenever the active target changes.
+    const targetId = activeTarget ? activeTarget.id : null
+    if (targetId !== activeTargetIdRef.current) {
+      activeTargetIdRef.current = targetId
+      holdMsRef.current = 0
+      passedRef.current = false
+      setHoldProgress(0)
+    }
+
+    const now = timestamp || performance.now()
+    const dt = lastTsRef.current ? now - lastTsRef.current : 0
+    lastTsRef.current = now
+
     const pitch = autoCorrelate(buffer, audioContext.sampleRate)
-    if (pitch !== -1) {
-      setFrequency(pitch)
-      setNote(frequencyToNote(pitch))
+
+    if (pitch === -1) {
+      // Silence: pause progress (so brief bow lifts don't reset it) and clear
+      // the readout, but keep any accumulated hold time.
+      setReading(null)
+    } else if (activeTarget) {
+      // Practice mode: measure deviation from the exact target frequency.
+      const cents = Math.round(1200 * Math.log2(pitch / activeTarget.frequency))
+      setReading({ frequency: pitch, cents, label: activeTarget.label })
+
+      if (Math.abs(cents) <= IN_TUNE_CENTS) {
+        holdMsRef.current += dt
+      } else {
+        holdMsRef.current = 0
+      }
+      const progress = Math.min(holdMsRef.current / HOLD_MS, 1)
+      setHoldProgress(progress)
+      if (progress >= 1 && !passedRef.current) {
+        passedRef.current = true
+        if (onPassRef.current) onPassRef.current()
+      }
     } else {
-      setFrequency(null)
-      setNote(null)
+      // Free mode: report the nearest equal-tempered note.
+      const n = frequencyToNote(pitch)
+      setReading({
+        frequency: pitch,
+        cents: n.cents,
+        label: n.combined,
+        octave: n.octave,
+        scientific: n.scientific,
+        isOpenString: n.isOpenString,
+      })
     }
 
     rafRef.current = requestAnimationFrame(tick)
@@ -270,75 +346,110 @@ export default function AudioTestbed() {
     }
     analyserRef.current = null
     bufferRef.current = null
+    holdMsRef.current = 0
+    passedRef.current = false
+    lastTsRef.current = 0
+    activeTargetIdRef.current = null
     setIsListening(false)
-    setFrequency(null)
-    setNote(null)
+    setReading(null)
+    setHoldProgress(0)
   }
+
+  const inTune = practiceMode && reading && Math.abs(reading.cents) <= IN_TUNE_CENTS
 
   return (
     <section className="testbed">
-      <header className="testbed__header">
-        <h1 className="testbed__title">Audio Testbed</h1>
-        <p className="testbed__subtitle">Pitch detection &amp; live waveform</p>
-      </header>
+      {!practiceMode && (
+        <header className="testbed__header">
+          <h1 className="testbed__title">Audio Testbed</h1>
+          <p className="testbed__subtitle">Pitch detection &amp; live waveform</p>
+        </header>
+      )}
 
       <div className="testbed__indicator-wrap">
         <div
           className="testbed__indicator"
           style={
-            note
+            reading
               ? {
                   background: `radial-gradient(circle at 50% 38%, ${centsToColor(
-                    note.cents,
+                    reading.cents,
                     60,
-                  )}, ${centsToColor(note.cents, 38)})`,
-                  boxShadow: `0 0 70px 6px ${centsToColor(note.cents, 50)}`,
-                  borderColor: centsToColor(note.cents, 55),
+                  )}, ${centsToColor(reading.cents, 38)})`,
+                  boxShadow: `0 0 70px 6px ${centsToColor(reading.cents, 50)}`,
+                  borderColor: centsToColor(reading.cents, 55),
                 }
               : undefined
           }
         >
-          {note ? (
+          {reading ? (
             <>
               <span className="testbed__indicator-note">
-                {note.combined}
-                <span className="testbed__octave">{note.octave}</span>
+                {reading.label}
+                {reading.octave !== undefined && (
+                  <span className="testbed__octave">{reading.octave}</span>
+                )}
               </span>
               <span className="testbed__indicator-cents">
-                {note.cents > 0 ? `+${note.cents}` : note.cents} cents
+                {reading.cents > 0 ? `+${reading.cents}` : reading.cents} cents
               </span>
-              {note.isOpenString && (
+              {practiceMode && inTune && (
+                <span className="testbed__open-badge">In tune</span>
+              )}
+              {!practiceMode && reading.isOpenString && (
                 <span className="testbed__open-badge">Open string</span>
               )}
             </>
           ) : (
             <span className="testbed__indicator-idle">
-              {isListening ? 'Play a note…' : 'Not listening'}
+              {practiceMode
+                ? isListening
+                  ? `Play ${target.label}`
+                  : target.label
+                : isListening
+                  ? 'Play a note…'
+                  : 'Not listening'}
             </span>
           )}
         </div>
       </div>
 
+      {practiceMode && (
+        <div className="testbed__hold">
+          <div
+            className="testbed__hold-fill"
+            style={{
+              width: `${Math.round(holdProgress * 100)}%`,
+              background: centsToColor(reading ? reading.cents : 50, 50),
+            }}
+          />
+        </div>
+      )}
+
       <div className="testbed__freq">
-        {frequency ? frequency.toFixed(1) : '—'}
+        {reading ? reading.frequency.toFixed(1) : '—'}
         <span className="testbed__unit">Hz</span>
       </div>
 
-      <div className="testbed__strings">
-        <span className="testbed__strings-label">Open strings</span>
-        <div className="testbed__strings-list">
-          {OPEN_STRINGS.map((s) => (
-            <span
-              key={s}
-              className={`testbed__string ${
-                note && note.scientific === s ? 'testbed__string--active' : ''
-              }`}
-            >
-              {s}
-            </span>
-          ))}
+      {!practiceMode && (
+        <div className="testbed__strings">
+          <span className="testbed__strings-label">Open strings</span>
+          <div className="testbed__strings-list">
+            {OPEN_STRINGS.map((s) => (
+              <span
+                key={s}
+                className={`testbed__string ${
+                  reading && reading.scientific === s
+                    ? 'testbed__string--active'
+                    : ''
+                }`}
+              >
+                {s}
+              </span>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
       <canvas ref={canvasRef} className="testbed__canvas" />
 
