@@ -3,6 +3,11 @@ node_modules
 .pnp
 .pnp.js
 
+# Secrets — never commit real keys
+.env
+.env.*
+!.env.example
+
 # Build output
 dist
 dist-ssr

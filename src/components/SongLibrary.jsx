@@ -85,6 +85,7 @@ export default function SongLibrary({ onBackHome }) {
   const [songs, setSongs] = useState(SEED_SONGS)
   const [url, setUrl] = useState('')
   const [addError, setAddError] = useState(null)
+  const [isAdding, setIsAdding] = useState(false)
   const [selectedSong, setSelectedSong] = useState(null)
 
   // Selecting a song launches the player for it.
@@ -96,25 +97,64 @@ export default function SongLibrary({ onBackHome }) {
 
   const items = songs.filter((s) => s.category === activeTab)
 
-  function handleAdd(event) {
+  async function handleAdd(event) {
     event.preventDefault()
     const youtubeId = extractYouTubeId(url)
     if (!youtubeId) {
       setAddError('כתובת יוטיוב לא תקינה')
       return
     }
+
+    setIsAdding(true)
+    setAddError(null)
+
+    // Best-effort: fetch the real video title from YouTube's oEmbed endpoint.
+    let title = 'שיר מיוטיוב'
+    try {
+      const oembed = await fetch(
+        `https://www.youtube.com/oembed?format=json&url=https://www.youtube.com/watch?v=${youtubeId}`,
+      )
+      if (oembed.ok) {
+        const data = await oembed.json()
+        if (data.title) title = data.title
+      }
+    } catch {
+      // Title is optional — fall back to the default.
+    }
+
+    const maqam = DEFAULT_MAQAM // new YouTube songs default to the Ajam scale
+
+    // Ask the local backend (Claude) to translate the song into timed phrases.
+    let notes = null
+    try {
+      const response = await fetch('/api/translate-song', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, maqam }),
+      })
+      if (response.ok) {
+        const data = await response.json()
+        notes = data.notes
+      } else {
+        setAddError('התרגום נכשל — השיר נוסף ללא תווים')
+      }
+    } catch {
+      setAddError('אין חיבור לשרת — השיר נוסף ללא תווים')
+    }
+
     const newSong = {
       id: `yt-${youtubeId}-${Date.now()}`,
       category: 'repertoire',
       isLocal: false,
       youtubeId,
-      title: 'שיר מיוטיוב',
+      title,
       subtitle: youtubeId,
-      maqam: DEFAULT_MAQAM, // new YouTube songs default to the Ajam scale
+      maqam,
+      notes, // generated phrase array, or null if the backend was unavailable
     }
     setSongs((prev) => [...prev, newSong])
     setUrl('')
-    setAddError(null)
+    setIsAdding(false)
   }
 
   function updateMaqam(id, maqam) {
@@ -160,9 +200,10 @@ export default function SongLibrary({ onBackHome }) {
             value={url}
             onChange={(e) => setUrl(e.target.value)}
             placeholder="הדביקו כתובת יוטיוב"
+            disabled={isAdding}
           />
-          <button type="submit" className="library__add-button">
-            הוסף שיר מיוטיוב
+          <button type="submit" className="library__add-button" disabled={isAdding}>
+            {isAdding ? 'מתרגם…' : 'הוסף שיר מיוטיוב'}
           </button>
           {addError && <span className="library__add-error">{addError}</span>}
         </form>

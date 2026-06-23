@@ -213,6 +213,12 @@
   -webkit-tap-highlight-color: transparent;
 }
 
+.library__add-button:disabled,
+.library__add-input:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
 .library__add-error {
   flex: 1 1 100%;
   font-size: 0.82rem;
