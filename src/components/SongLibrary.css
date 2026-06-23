@@ -225,3 +225,35 @@
   color: #fda4af;
   text-align: right;
 }
+
+/* Audio-file upload control */
+.library__upload {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.library__upload-button {
+  flex: 1 1 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 13px;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px dashed var(--border);
+  border-radius: 12px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.library__upload-button.is-busy {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.library__upload-input {
+  display: none;
+}

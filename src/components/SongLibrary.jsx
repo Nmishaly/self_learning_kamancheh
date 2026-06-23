@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import SongInstructor from './SongInstructor.jsx'
 import { MAQAM_OPTIONS, DEFAULT_MAQAM } from '../data/maqams.js'
+import { decodeAndAnalyze } from '../audio/analyzeAudio.js'
 import './SongLibrary.css'
 
 // The two library tabs.
@@ -86,6 +87,8 @@ export default function SongLibrary({ onBackHome }) {
   const [url, setUrl] = useState('')
   const [addError, setAddError] = useState(null)
   const [isAdding, setIsAdding] = useState(false)
+  const [isAnalyzing, setIsAnalyzing] = useState(false)
+  const [uploadError, setUploadError] = useState(null)
   const [selectedSong, setSelectedSong] = useState(null)
 
   // Selecting a song launches the player for it.
@@ -157,6 +160,43 @@ export default function SongLibrary({ onBackHome }) {
     setIsAdding(false)
   }
 
+  // Analyze a local audio file entirely in the browser (no server round-trip):
+  // decode it, run onset/beat/pitch detection, and store the resulting notes.
+  async function handleFile(event) {
+    const file = event.target.files && event.target.files[0]
+    event.target.value = '' // allow re-selecting the same file later
+    if (!file) return
+
+    setIsAnalyzing(true)
+    setUploadError(null)
+    try {
+      const arrayBuffer = await file.arrayBuffer()
+      const { bpm, notes } = await decodeAndAnalyze(arrayBuffer)
+      if (!notes || notes.length === 0) {
+        setUploadError('לא זוהו תווים בקובץ')
+        return
+      }
+      const newSong = {
+        id: `file-${Date.now()}`,
+        category: 'repertoire',
+        isLocal: false,
+        source: 'upload',
+        youtubeId: '',
+        title: file.name.replace(/\.[^.]+$/, ''),
+        subtitle: `${notes.length} תווים · ${bpm} BPM`,
+        maqam: DEFAULT_MAQAM,
+        bpm,
+        notes,
+      }
+      setSongs((prev) => [...prev, newSong])
+      setActiveTab('repertoire')
+    } catch {
+      setUploadError('לא ניתן לנתח את הקובץ — נסו קובץ שמע אחר')
+    } finally {
+      setIsAnalyzing(false)
+    }
+  }
+
   function updateMaqam(id, maqam) {
     setSongs((prev) => prev.map((s) => (s.id === id ? { ...s, maqam } : s)))
   }
@@ -209,6 +249,26 @@ export default function SongLibrary({ onBackHome }) {
         </form>
       )}
 
+      {activeTab === 'repertoire' && (
+        <div className="library__upload" dir="rtl" lang="he">
+          <label
+            className={`library__upload-button ${isAnalyzing ? 'is-busy' : ''}`}
+          >
+            {isAnalyzing ? 'מנתח שמע…' : '📂 העלאת קובץ שמע'}
+            <input
+              type="file"
+              accept="audio/*"
+              className="library__upload-input"
+              onChange={handleFile}
+              disabled={isAnalyzing}
+            />
+          </label>
+          {uploadError && (
+            <span className="library__add-error">{uploadError}</span>
+          )}
+        </div>
+      )}
+
       <ul className="library__list">
         {items.map((item) => (
           <li key={item.id} className="library__card">
@@ -217,17 +277,21 @@ export default function SongLibrary({ onBackHome }) {
               className="library__card-main"
               onClick={() => setSelectedSong(item)}
             >
-              {item.isLocal ? (
-                <LocalThumb />
-              ) : (
+              {item.youtubeId ? (
                 <YouTubeThumb youtubeId={item.youtubeId} alt={item.title} />
+              ) : (
+                <LocalThumb />
               )}
               <div className="library__card-body" dir="rtl" lang="he">
                 <span className="library__card-title">{item.title}</span>
                 <span className="library__card-sub">{item.subtitle}</span>
               </div>
               <span className="library__card-status">
-                {item.isLocal ? 'מקומי' : 'יוטיוב'}
+                {item.source === 'upload'
+                  ? 'שמע'
+                  : item.isLocal
+                    ? 'מקומי'
+                    : 'יוטיוב'}
               </span>
             </button>
 
