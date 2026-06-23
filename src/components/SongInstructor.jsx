@@ -35,6 +35,13 @@ const FINGERS = [
   { id: 'Pinky', label: 'ז' },
 ]
 
+// Practice slow-down options (no pitch change).
+const SPEEDS = [0.5, 0.75, 1]
+
+// Hebrew labels for the on-screen "where to play" guidance.
+const STRING_HE = { D5: 'מיתר רה׳', A4: 'מיתר לה', D4: 'מיתר רה', A3: 'מיתר לה׳' }
+const FINGER_HE = { Open: 'פתוח', 1: 'אצבע 1', 2: 'אצבע 2', 3: 'אצבע 3', Pinky: 'זרת' }
+
 /**
  * Song player / instructor. Auto-plays a maqam scale and synchronises a moving
  * highlight on the fingerboard with the audio elapsed time.
@@ -90,14 +97,21 @@ export default function SongInstructor({ stage, song, onComplete, onExit }) {
   const [isPlaying, setIsPlaying] = useState(false)
   const [currentIndex, setCurrentIndex] = useState(0)
   const [videoError, setVideoError] = useState(false)
+  const [speed, setSpeed] = useState(1)
+  const [loop, setLoop] = useState(false)
 
   const audioCtxRef = useRef(null)
   const samplerRef = useRef(null)
   const rafRef = useRef(null)
-  const startWallRef = useRef(0) // audio-clock anchor: ctx.currentTime at elapsed 0
-  const seekRef = useRef(0) // elapsed-seconds offset (synth)
+  const startWallRef = useRef(0) // real-time anchor: ctx.currentTime at the seek point
+  const seekRef = useRef(0) // song-time position (seconds) at the anchor
   const lastTriggeredRef = useRef(-1)
   const videoRef = useRef(null)
+  const speedRef = useRef(1)
+  const loopRef = useRef(false)
+  const loopStartRef = useRef(0)
+  const loopEndRef = useRef(0)
+  const timelineRef = useRef(null)
 
   const step = steps[currentIndex] || steps[0]
 
@@ -108,6 +122,18 @@ export default function SongInstructor({ stage, song, onComplete, onExit }) {
       if (audioCtxRef.current) audioCtxRef.current.close()
     }
   }, [])
+
+  useEffect(() => {
+    speedRef.current = speed
+  }, [speed])
+
+  // Keep the active note centred in the horizontally-scrolling timeline.
+  useEffect(() => {
+    const el = timelineRef.current
+    if (!el) return
+    const active = el.querySelector('.song__slot--active')
+    if (active) active.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' })
+  }, [currentIndex])
 
   function ensureCtx() {
     if (!audioCtxRef.current) {
@@ -243,16 +269,52 @@ export default function SongInstructor({ stage, song, onComplete, onExit }) {
     }
   }
 
-  function frame() {
-    // Synth playback is timed against the AudioContext clock (sample-accurate,
-    // in real seconds), so the highlight stays locked to what's sounding.
+  // Song-time elapsed (seconds). Synth is clocked off the AudioContext and
+  // scaled by the practice speed so slowing down never changes pitch.
+  function currentElapsed() {
+    if (isLocalVideo && videoRef.current) return videoRef.current.currentTime
     const ctx = audioCtxRef.current
-    const elapsed =
-      isLocalVideo && videoRef.current
-        ? videoRef.current.currentTime
-        : ctx
-          ? ctx.currentTime - startWallRef.current
-          : seekRef.current
+    if (!ctx) return seekRef.current
+    return seekRef.current + (ctx.currentTime - startWallRef.current) * speedRef.current
+  }
+
+  // Move the playhead to a song-time position and re-anchor the active clock.
+  function reanchor(time) {
+    seekRef.current = time
+    lastTriggeredRef.current = -1
+    if (isLocalVideo && videoRef.current) {
+      videoRef.current.currentTime = time
+    } else {
+      const ctx = audioCtxRef.current
+      if (ctx) startWallRef.current = ctx.currentTime
+    }
+  }
+
+  // The [start, end) song-time span of the phrase containing a note index.
+  function phraseRange(idx) {
+    const before = phraseStarts.filter((p) => p <= idx)
+    const startIdx = before.length ? before[before.length - 1] : 0
+    const nextIdx = phraseStarts.find((p) => p > startIdx)
+    const startTime = steps[startIdx] ? steps[startIdx].start : 0
+    const endTime = nextIdx != null && steps[nextIdx] ? steps[nextIdx].start : total
+    return { startTime, endTime }
+  }
+
+  function setLoopRegion(idx) {
+    const { startTime, endTime } = phraseRange(idx)
+    loopStartRef.current = startTime
+    loopEndRef.current = endTime
+  }
+
+  function frame() {
+    const elapsed = currentElapsed()
+
+    // Loop the selected phrase: jump back to its start at the end.
+    if (loopRef.current && elapsed >= loopEndRef.current) {
+      reanchor(loopStartRef.current)
+      rafRef.current = requestAnimationFrame(frame)
+      return
+    }
 
     if (elapsed >= total) {
       finishPlayback()
@@ -268,21 +330,25 @@ export default function SongInstructor({ stage, song, onComplete, onExit }) {
     if (idx !== lastTriggeredRef.current) {
       lastTriggeredRef.current = idx
       setCurrentIndex(idx)
-      if (!isLocalVideo) playTone(steps[idx].frequency, steps[idx].duration)
+      // Sustain across the (possibly slowed) real-time gap to the next note.
+      if (!isLocalVideo) playTone(steps[idx].frequency, steps[idx].duration / speedRef.current)
     }
     rafRef.current = requestAnimationFrame(frame)
   }
 
   async function play() {
-    if (seekRef.current >= total) {
+    if (seekRef.current >= total && !loopRef.current) {
       seekRef.current = 0
       setCurrentIndex(0)
+      if (isLocalVideo && videoRef.current) videoRef.current.currentTime = 0
     }
     lastTriggeredRef.current = -1
 
     if (isLocalVideo) {
       const video = videoRef.current
       if (video) {
+        video.playbackRate = speedRef.current
+        video.preservesPitch = true
         try {
           await video.play()
         } catch {
@@ -292,8 +358,7 @@ export default function SongInstructor({ stage, song, onComplete, onExit }) {
     } else {
       const ctx = ensureCtx()
       if (ctx.state === 'suspended') await ctx.resume()
-      // Anchor so that elapsed = ctx.currentTime - startWallRef, resuming from seek.
-      startWallRef.current = ctx.currentTime - seekRef.current
+      startWallRef.current = ctx.currentTime // elapsed = seekRef + (now-anchor)*speed
     }
 
     setIsPlaying(true)
@@ -302,13 +367,9 @@ export default function SongInstructor({ stage, song, onComplete, onExit }) {
   }
 
   function pause() {
+    if (!isLocalVideo) seekRef.current = currentElapsed()
     stopLoop()
-    if (isLocalVideo && videoRef.current) {
-      videoRef.current.pause()
-    } else {
-      const ctx = audioCtxRef.current
-      if (ctx) seekRef.current = ctx.currentTime - startWallRef.current
-    }
+    if (isLocalVideo && videoRef.current) videoRef.current.pause()
     setIsPlaying(false)
   }
 
@@ -325,38 +386,62 @@ export default function SongInstructor({ stage, song, onComplete, onExit }) {
     else play()
   }
 
-  function seekToIndex(idx) {
-    const clamped = Math.max(0, Math.min(idx, steps.length - 1))
-    const time = steps[clamped].start
-    seekRef.current = time
-    lastTriggeredRef.current = -1
-    setCurrentIndex(clamped)
-    if (isLocalVideo && videoRef.current) {
-      videoRef.current.currentTime = time
-    } else if (isPlaying) {
+  // Change practice speed without changing pitch.
+  function changeSpeed(value) {
+    if (isPlaying && !isLocalVideo) {
+      // Re-anchor so the new rate applies from the current position.
+      seekRef.current = currentElapsed()
       const ctx = audioCtxRef.current
-      if (ctx) startWallRef.current = ctx.currentTime - time
+      if (ctx) startWallRef.current = ctx.currentTime
+    }
+    if (isLocalVideo && videoRef.current) {
+      videoRef.current.playbackRate = value
+      videoRef.current.preservesPitch = true
+    }
+    speedRef.current = value
+    setSpeed(value)
+  }
+
+  function toggleLoop() {
+    const next = !loop
+    setLoop(next)
+    loopRef.current = next
+    if (next) {
+      setLoopRegion(currentIndex)
+      reanchor(loopStartRef.current)
+      const before = phraseStarts.filter((p) => p <= currentIndex)
+      setCurrentIndex(before.length ? before[before.length - 1] : 0)
     }
   }
 
-  // Skip by musical phrase (tetrachord / four-note group), not single notes.
+  function seekToIndex(idx) {
+    const clamped = Math.max(0, Math.min(idx, steps.length - 1))
+    reanchor(steps[clamped].start)
+    setCurrentIndex(clamped)
+  }
+
+  // Skip by musical phrase (tetrachord / four-note group). While looping, this
+  // also moves which phrase repeats.
   function skipNext() {
-    const next = phraseStarts.find((p) => p > currentIndex)
-    seekToIndex(next ?? steps.length - 1)
+    const next = phraseStarts.find((p) => p > currentIndex) ?? steps.length - 1
+    seekToIndex(next)
+    if (loopRef.current) setLoopRegion(next)
   }
 
   function skipPrev() {
     const reversed = [...phraseStarts].reverse()
     const currentPhrase = reversed.find((p) => p <= currentIndex) ?? 0
-    if (currentIndex > currentPhrase) {
-      seekToIndex(currentPhrase)
-    } else {
-      const prev = reversed.find((p) => p < currentPhrase)
-      seekToIndex(prev ?? 0)
-    }
+    const target =
+      currentIndex > currentPhrase
+        ? currentPhrase
+        : reversed.find((p) => p < currentPhrase) ?? 0
+    seekToIndex(target)
+    if (loopRef.current) setLoopRegion(target)
   }
 
   const progress = steps.length ? ((currentIndex + 1) / steps.length) * 100 : 0
+  const nextStep = steps[currentIndex + 1]
+  const placement = (s) => `${STRING_HE[s.string] || s.string} · ${FINGER_HE[s.finger] || ''}`
 
   return (
     <section className="song">
@@ -403,14 +488,24 @@ export default function SongInstructor({ stage, song, onComplete, onExit }) {
         )}
       </div>
 
-      {/* Hebrew Solfège instruction */}
-      <div className="song__instruction" dir="rtl" lang="he">
-        <span className="song__instruction-eyebrow">{step.instruction || 'נגנו יחד'}</span>
-        <p className="song__instruction-text">{step.solfegeHe}</p>
+      {/* Pedagogical guide: what to play, where, and what's next */}
+      <div className="song__guide" dir="rtl" lang="he">
+        <div className="song__guide-main">
+          <span className="song__guide-note">{step.solfegeHe}</span>
+          <span className="song__guide-where">{placement(step)}</span>
+        </div>
+        <div className="song__guide-meta">
+          {step.instruction && (
+            <span className="song__guide-technique">{step.instruction}</span>
+          )}
+          <span className="song__guide-next">
+            הבא: {nextStep ? nextStep.solfegeHe : '—'}
+          </span>
+        </div>
       </div>
 
-      {/* Timeline with the moving cursor */}
-      <div className="song__timeline" dir="rtl">
+      {/* Timeline with the moving, auto-centred cursor */}
+      <div className="song__timeline" dir="rtl" ref={timelineRef}>
         {steps.map((n, i) => (
           <span
             key={`${n.english}-${i}`}
@@ -423,8 +518,9 @@ export default function SongInstructor({ stage, song, onComplete, onExit }) {
         ))}
       </div>
 
-      {/* String + finger map, synced to the elapsed time */}
-      <div className="song__fretboard" aria-hidden="true">
+      {/* String + finger map, synced to the elapsed time. The active finger
+          shows the Hebrew Solfège note so the eye lands on where to play. */}
+      <div className="song__fretboard">
         {STRINGS.map((s) => {
           const onThisString = step.string === s.id
           return (
@@ -432,9 +528,7 @@ export default function SongInstructor({ stage, song, onComplete, onExit }) {
               key={s.id}
               className={`song__string ${onThisString ? 'song__string--active' : ''}`}
             >
-              <span className="song__string-name">
-                {s.solfege} / {s.id}
-              </span>
+              <span className="song__string-name">{STRING_HE[s.id] || s.id}</span>
               <div className="song__slots">
                 {FINGERS.map((f) => {
                   const active = onThisString && step.finger === f.id
@@ -443,7 +537,7 @@ export default function SongInstructor({ stage, song, onComplete, onExit }) {
                       key={f.id}
                       className={`song__finger ${active ? 'song__finger--active' : ''}`}
                     >
-                      {f.label}
+                      {active ? step.solfegeHe : f.label}
                     </span>
                   )
                 })}
@@ -451,6 +545,30 @@ export default function SongInstructor({ stage, song, onComplete, onExit }) {
             </div>
           )
         })}
+      </div>
+
+      {/* Practice tools: slow down (no pitch change) + loop a phrase */}
+      <div className="song__practice" dir="rtl" lang="he">
+        <div className="song__speeds" role="group" aria-label="מהירות נגינה">
+          {SPEEDS.map((s) => (
+            <button
+              key={s}
+              type="button"
+              className={`song__speed ${speed === s ? 'song__speed--active' : ''}`}
+              onClick={() => changeSpeed(s)}
+            >
+              {Math.round(s * 100)}%
+            </button>
+          ))}
+        </div>
+        <button
+          type="button"
+          className={`song__loop ${loop ? 'song__loop--active' : ''}`}
+          aria-pressed={loop}
+          onClick={toggleLoop}
+        >
+          🔁 חזרה על משפט
+        </button>
       </div>
 
       {/* Progress + transport controls */}

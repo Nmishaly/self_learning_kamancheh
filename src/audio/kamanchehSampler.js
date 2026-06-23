@@ -52,22 +52,34 @@ export function createKamanchehSampler(ctx) {
     return ready
   }
 
+  // Beyond this much pitch-shift a single sample sounds unnatural; let the
+  // caller fall back to the synth instead.
+  const MAX_SHIFT_CENTS = 700
+  const centsBetween = (a, b) => 1200 * Math.log2(a / b)
+
   function play(frequency, when, duration, destination) {
     if (!ready) return false
+
+    // Pick the sample closest in pitch *measured in cents* (log scale), so
+    // microtonal targets — koron/sori quarter tones — map to the right sample.
     let nearest = buffers[0]
     for (const candidate of buffers) {
       if (
-        Math.abs(candidate.frequency - frequency) <
-        Math.abs(nearest.frequency - frequency)
+        Math.abs(centsBetween(frequency, candidate.frequency)) <
+        Math.abs(centsBetween(frequency, nearest.frequency))
       ) {
         nearest = candidate
       }
+    }
+    if (Math.abs(centsBetween(frequency, nearest.frequency)) > MAX_SHIFT_CENTS) {
+      return false
     }
 
     const now = when ?? ctx.currentTime
     const src = ctx.createBufferSource()
     src.buffer = nearest.buffer
-    src.playbackRate.value = frequency / nearest.frequency // pitch shift
+    // Exact ratio reproduces microtonal pitches precisely (no quantization).
+    src.playbackRate.value = frequency / nearest.frequency
 
     const gain = ctx.createGain()
     const release = Math.min(0.1, duration * 0.3)

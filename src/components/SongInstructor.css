@@ -435,3 +435,158 @@
   background: var(--surface-2);
   border: 1px solid var(--border);
 }
+
+/* ── Pedagogy: guide card, scannable timeline, fingerboard, practice tools ── */
+
+/* Guide card: the single "what + where + next" focus point */
+.song__guide {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 18px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  text-align: center;
+}
+
+.song__guide-main {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.song__guide-note {
+  font-size: 2.6rem;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--accent);
+}
+
+.song__guide-where {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.song__guide-meta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+
+.song__guide-technique {
+  color: var(--accent);
+  background: rgba(94, 234, 212, 0.1);
+  border: 1px solid rgba(94, 234, 212, 0.3);
+  border-radius: 999px;
+  padding: 3px 12px;
+  font-weight: 600;
+}
+
+/* Timeline: a single horizontally-scrolling lane, active note auto-centred */
+.song__timeline {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding: 6px 2px;
+}
+
+.song__timeline::-webkit-scrollbar {
+  display: none;
+}
+
+.song__slot {
+  flex: 0 0 auto;
+  min-width: 42px;
+  font-size: 0.95rem;
+}
+
+.song__slot--active {
+  transform: scale(1.12);
+}
+
+/* Fingerboard: larger, higher-contrast, with the note shown on the active dot */
+.song__string {
+  gap: 14px;
+}
+
+.song__string-name {
+  flex: 0 0 72px;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.song__finger {
+  width: 38px;
+  height: 38px;
+  font-size: 0.92rem;
+}
+
+.song__finger--active {
+  width: 48px;
+  height: 48px;
+  font-size: 1.15rem;
+  font-weight: 800;
+  transform: none;
+  box-shadow: 0 0 22px 3px rgba(94, 234, 212, 0.5);
+}
+
+/* Practice tools row */
+.song__practice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.song__speeds {
+  display: inline-flex;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 3px;
+}
+
+.song__speed {
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  font-weight: 700;
+  font-size: 0.85rem;
+  padding: 9px 15px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-variant-numeric: tabular-nums;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.song__speed--active {
+  color: #07120f;
+  background: var(--accent);
+}
+
+.song__loop {
+  flex: 1;
+  min-width: 150px;
+  padding: 11px 14px;
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.song__loop--active {
+  color: #07120f;
+  background: #fbbf24;
+  border-color: #fbbf24;
+}

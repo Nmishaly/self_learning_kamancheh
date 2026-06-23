@@ -92,9 +92,37 @@ const NOTE_LOOKUP = {
   'סי': { frequency: 493.88, english: 'B', string: 'A4', finger: '1' },
 }
 
-/** Resolve a Hebrew Solfège name to a playable note (defaults to רה / D). */
+/** Resolve a Hebrew Solfège name to a playable note (defaults to רה / D).
+ *  Handles microtonal modifiers essential to Eastern maqams:
+ *    "<note> קורון"  → koron, a quarter tone (≈50 cents) below the note
+ *    "<note> סורי"   → sori,  a quarter tone (≈50 cents) above the note
+ *  Explicit entries in NOTE_LOOKUP (which encode the exact maqam frequencies,
+ *  e.g. the neutral 7th "דו קורון") take precedence over the generic rule. */
+const raise50 = (freq) => Math.round(freq * 2 ** (50 / 1200) * 100) / 100
+
 export function resolveHebrewNote(name) {
   if (!name) return NOTE_LOOKUP['רה']
   const key = name.trim().replace('#', ' דיאז').replace(/\s+/g, ' ')
-  return NOTE_LOOKUP[key] || NOTE_LOOKUP['רה']
+
+  // Exact match first (covers the maqam-specific koron frequencies).
+  if (NOTE_LOOKUP[key]) return NOTE_LOOKUP[key]
+
+  // Generic microtonal fallback for any "<base> קורון" / "<base> סורי".
+  let base = key
+  let cents = 0
+  if (/\sקורון$/.test(key)) {
+    base = key.replace(/\sקורון$/, '')
+    cents = -50
+  } else if (/\sסורי$/.test(key)) {
+    base = key.replace(/\sסורי$/, '')
+    cents = 50
+  }
+
+  const root = NOTE_LOOKUP[base] || NOTE_LOOKUP['רה']
+  if (cents === 0) return root
+  return {
+    ...root,
+    frequency: cents < 0 ? lower50(root.frequency) : raise50(root.frequency),
+    english: `${root.english}${cents < 0 ? '‹' : '›'}`,
+  }
 }
