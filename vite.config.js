@@ -9,10 +9,5 @@ export default defineConfig({
     // on the same network (e.g. http://<your-computer-ip>:5173).
     host: true,
     port: 5173,
-    // Proxy API calls to the local Express server (npm run server),
-    // so the frontend can fetch /api/* without CORS or a hardcoded port.
-    proxy: {
-      '/api': 'http://localhost:3001',
-    },
   },
 })
