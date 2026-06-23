@@ -39,7 +39,7 @@ export default function SongInstructor({ stage, song, onComplete, onExit }) {
   const aiNotes =
     song && Array.isArray(song.notes) && song.notes.length > 0 ? song.notes : null
 
-  const steps = aiNotes
+  const baseSteps = aiNotes
     ? aiNotes
         .map((n, i) => ({
           solfegeHe: n.note,
@@ -50,7 +50,17 @@ export default function SongInstructor({ stage, song, onComplete, onExit }) {
         .sort((a, b) => a.start - b.start)
     : maqam.notes.map((n, i) => ({ ...n, start: i * NOTE_SECONDS }))
 
-  const total = steps.length ? steps[steps.length - 1].start + NOTE_SECONDS : 0
+  // Each note sustains until the next note's timestamp, so synth playback is
+  // continuous and matches the AI-generated rhythm (last note gets a tail).
+  const steps = baseSteps.map((s, i) => {
+    const next = baseSteps[i + 1]
+    const duration = next ? Math.max(0.12, next.start - s.start) : NOTE_SECONDS
+    return { ...s, duration }
+  })
+
+  const total = steps.length
+    ? steps[steps.length - 1].start + steps[steps.length - 1].duration
+    : 0
 
   // Skip points: the maqam's tetrachords, or every four notes for an AI melody.
   const phraseStarts = aiNotes
@@ -92,20 +102,24 @@ export default function SongInstructor({ stage, song, onComplete, onExit }) {
     return audioCtxRef.current
   }
 
-  // A short, clean digital synth tone with a quick attack/decay envelope.
-  function playTone(frequency) {
+  // A clean digital synth tone that sustains for (roughly) the note's duration,
+  // with a quick attack and a short release so notes flow into one another.
+  function playTone(frequency, duration = NOTE_SECONDS) {
     const ctx = ensureCtx()
     const now = ctx.currentTime
+    // Clamp so very short gaps still sound and very long gaps don't drone.
+    const dur = Math.min(Math.max(duration, 0.12), 2.5)
+    const attack = Math.min(0.02, dur * 0.2)
     const osc = ctx.createOscillator()
     const gain = ctx.createGain()
     osc.type = 'triangle'
     osc.frequency.value = frequency
     gain.gain.setValueAtTime(0.0001, now)
-    gain.gain.exponentialRampToValueAtTime(SYNTH_GAIN, now + 0.02)
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + NOTE_SECONDS * 0.95)
+    gain.gain.exponentialRampToValueAtTime(SYNTH_GAIN, now + attack)
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + dur * 0.95)
     osc.connect(gain).connect(ctx.destination)
     osc.start(now)
-    osc.stop(now + NOTE_SECONDS)
+    osc.stop(now + dur)
   }
 
   function stopLoop() {
@@ -135,7 +149,7 @@ export default function SongInstructor({ stage, song, onComplete, onExit }) {
     if (idx !== lastTriggeredRef.current) {
       lastTriggeredRef.current = idx
       setCurrentIndex(idx)
-      if (!isLocalVideo) playTone(steps[idx].frequency)
+      if (!isLocalVideo) playTone(steps[idx].frequency, steps[idx].duration)
     }
     rafRef.current = requestAnimationFrame(frame)
   }
