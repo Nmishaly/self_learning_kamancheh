@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { MAQAMS, DEFAULT_MAQAM } from '../data/maqams.js'
+import { MAQAMS, DEFAULT_MAQAM, resolveHebrewNote } from '../data/maqams.js'
 import './SongInstructor.css'
 
 // Playback tempo: each scale note lasts this many seconds.
@@ -33,8 +33,30 @@ const FINGERS = [
 export default function SongInstructor({ stage, song, onComplete, onExit }) {
   const maqamId = (song && song.maqam) || DEFAULT_MAQAM
   const maqam = MAQAMS[maqamId] || MAQAMS[DEFAULT_MAQAM]
-  const notes = maqam.notes
-  const total = notes.length * NOTE_SECONDS
+
+  // Prefer AI-translated phrases (with real timestamps) when the song has them;
+  // otherwise fall back to the maqam's evenly-spaced scale.
+  const aiNotes =
+    song && Array.isArray(song.notes) && song.notes.length > 0 ? song.notes : null
+
+  const steps = aiNotes
+    ? aiNotes
+        .map((n, i) => ({
+          solfegeHe: n.note,
+          instruction: n.instruction,
+          start: typeof n.time === 'number' ? n.time : i * NOTE_SECONDS,
+          ...resolveHebrewNote(n.note),
+        }))
+        .sort((a, b) => a.start - b.start)
+    : maqam.notes.map((n, i) => ({ ...n, start: i * NOTE_SECONDS }))
+
+  const total = steps.length ? steps[steps.length - 1].start + NOTE_SECONDS : 0
+
+  // Skip points: the maqam's tetrachords, or every four notes for an AI melody.
+  const phraseStarts = aiNotes
+    ? steps.map((_, i) => i).filter((i) => i % 4 === 0)
+    : maqam.phraseStarts
+
   const isLocalVideo = Boolean(song && song.isLocal)
   const isYouTube = Boolean(song && !song.isLocal)
 
@@ -52,7 +74,7 @@ export default function SongInstructor({ stage, song, onComplete, onExit }) {
   const lastTriggeredRef = useRef(-1)
   const videoRef = useRef(null)
 
-  const step = notes[currentIndex]
+  const step = steps[currentIndex] || steps[0]
 
   // Tear down audio + animation on unmount.
   useEffect(() => {
@@ -104,11 +126,16 @@ export default function SongInstructor({ stage, song, onComplete, onExit }) {
       return
     }
 
-    const idx = Math.min(Math.floor(elapsed / NOTE_SECONDS), notes.length - 1)
+    // Current note = the last step whose start time has been reached.
+    let idx = 0
+    for (let i = 0; i < steps.length; i++) {
+      if (steps[i].start <= elapsed) idx = i
+      else break
+    }
     if (idx !== lastTriggeredRef.current) {
       lastTriggeredRef.current = idx
       setCurrentIndex(idx)
-      if (!isLocalVideo) playTone(notes[idx].frequency)
+      if (!isLocalVideo) playTone(steps[idx].frequency)
     }
     rafRef.current = requestAnimationFrame(frame)
   }
@@ -155,7 +182,7 @@ export default function SongInstructor({ stage, song, onComplete, onExit }) {
     if (isLocalVideo && videoRef.current) videoRef.current.pause()
     seekRef.current = total
     setIsPlaying(false)
-    setCurrentIndex(notes.length - 1)
+    setCurrentIndex(steps.length - 1)
   }
 
   function togglePlay() {
@@ -164,8 +191,8 @@ export default function SongInstructor({ stage, song, onComplete, onExit }) {
   }
 
   function seekToIndex(idx) {
-    const clamped = Math.max(0, Math.min(idx, notes.length - 1))
-    const time = clamped * NOTE_SECONDS
+    const clamped = Math.max(0, Math.min(idx, steps.length - 1))
+    const time = steps[clamped].start
     seekRef.current = time
     lastTriggeredRef.current = -1
     setCurrentIndex(clamped)
@@ -173,14 +200,14 @@ export default function SongInstructor({ stage, song, onComplete, onExit }) {
     if (isPlaying) startWallRef.current = performance.now()
   }
 
-  // Skip by musical phrase (tetrachord), not single notes.
+  // Skip by musical phrase (tetrachord / four-note group), not single notes.
   function skipNext() {
-    const next = maqam.phraseStarts.find((p) => p > currentIndex)
-    seekToIndex(next ?? notes.length - 1)
+    const next = phraseStarts.find((p) => p > currentIndex)
+    seekToIndex(next ?? steps.length - 1)
   }
 
   function skipPrev() {
-    const reversed = [...maqam.phraseStarts].reverse()
+    const reversed = [...phraseStarts].reverse()
     const currentPhrase = reversed.find((p) => p <= currentIndex) ?? 0
     if (currentIndex > currentPhrase) {
       seekToIndex(currentPhrase)
@@ -190,7 +217,7 @@ export default function SongInstructor({ stage, song, onComplete, onExit }) {
     }
   }
 
-  const progress = ((currentIndex + 1) / notes.length) * 100
+  const progress = steps.length ? ((currentIndex + 1) / steps.length) * 100 : 0
 
   return (
     <section className="song">
@@ -239,13 +266,13 @@ export default function SongInstructor({ stage, song, onComplete, onExit }) {
 
       {/* Hebrew Solfège instruction */}
       <div className="song__instruction" dir="rtl" lang="he">
-        <span className="song__instruction-eyebrow">נגנו יחד</span>
+        <span className="song__instruction-eyebrow">{step.instruction || 'נגנו יחד'}</span>
         <p className="song__instruction-text">{step.solfegeHe}</p>
       </div>
 
-      {/* Scale timeline with the moving cursor */}
+      {/* Timeline with the moving cursor */}
       <div className="song__timeline" dir="rtl">
-        {notes.map((n, i) => (
+        {steps.map((n, i) => (
           <span
             key={`${n.english}-${i}`}
             className={`song__slot ${i < currentIndex ? 'song__slot--done' : ''} ${
