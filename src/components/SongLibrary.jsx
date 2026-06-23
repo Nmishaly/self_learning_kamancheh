@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import SongInstructor from './SongInstructor.jsx'
+import { MAQAM_OPTIONS, DEFAULT_MAQAM } from '../data/maqams.js'
 import './SongLibrary.css'
 
 // The two library tabs.
@@ -11,26 +12,27 @@ const TABS = [
 // Hybrid seed data. The 15 teacher recordings are LOCAL assets (isLocal: true)
 // mapped to their video filenames and shown with an icon placeholder. YouTube
 // songs (isLocal: false) are added at runtime and fetch a remote thumbnail.
+// Every song carries a `maqam` (defaults to Ajam) used by the player.
 // NOTE: the filenames below are placeholders — swap in the real recordings.
 const SEED_SONGS = [
   // ── תרגילי טכניקה (Technique exercises) ──
-  { id: 't1', category: 'technique', isLocal: true, file: 'PXL_20251121_084618183.mp4', title: 'מיתרים פתוחים — יציבות', subtitle: 'תרגיל בסיס' },
-  { id: 't2', category: 'technique', isLocal: true, file: 'PXL_20251121_085012001.mp4', title: 'תרגיל לגאטו', subtitle: 'חיבור צלילים' },
-  { id: 't3', category: 'technique', isLocal: true, file: 'PXL_20251121_085440552.mp4', title: 'תרגיל סטקאטו', subtitle: 'קשת קצרה' },
-  { id: 't4', category: 'technique', isLocal: true, file: 'PXL_20251121_090015874.mp4', title: 'סולם אג׳ם / מהור', subtitle: 'רה–רה' },
-  { id: 't5', category: 'technique', isLocal: true, file: 'PXL_20251121_090533210.mp4', title: 'סולם שור', subtitle: 'מי בחצי במול' },
-  { id: 't6', category: 'technique', isLocal: true, file: 'PXL_20251121_091102447.mp4', title: 'תרגיל אצבעות 1–4', subtitle: 'כולל זרת' },
-  { id: 't7', category: 'technique', isLocal: true, file: 'PXL_20251121_091640989.mp4', title: 'תרגיל ויברטו', subtitle: 'יד שמאל' },
+  { id: 't1', category: 'technique', isLocal: true, file: 'PXL_20251121_084618183.mp4', title: 'מיתרים פתוחים — יציבות', subtitle: 'תרגיל בסיס', maqam: 'ajam' },
+  { id: 't2', category: 'technique', isLocal: true, file: 'PXL_20251121_085012001.mp4', title: 'תרגיל לגאטו', subtitle: 'חיבור צלילים', maqam: 'ajam' },
+  { id: 't3', category: 'technique', isLocal: true, file: 'PXL_20251121_085440552.mp4', title: 'תרגיל סטקאטו', subtitle: 'קשת קצרה', maqam: 'ajam' },
+  { id: 't4', category: 'technique', isLocal: true, file: 'PXL_20251121_090015874.mp4', title: 'סולם אג׳ם / מהור', subtitle: 'רה–רה', maqam: 'ajam' },
+  { id: 't5', category: 'technique', isLocal: true, file: 'PXL_20251121_090533210.mp4', title: 'סולם שור', subtitle: 'מי בחצי במול', maqam: 'shur' },
+  { id: 't6', category: 'technique', isLocal: true, file: 'PXL_20251121_091102447.mp4', title: 'תרגיל אצבעות 1–4', subtitle: 'כולל זרת', maqam: 'ajam' },
+  { id: 't7', category: 'technique', isLocal: true, file: 'PXL_20251121_091640989.mp4', title: 'תרגיל ויברטו', subtitle: 'יד שמאל', maqam: 'ajam' },
 
   // ── רפרטואר ושירים (Repertoire & songs) ──
-  { id: 'r1', category: 'repertoire', isLocal: true, file: 'PXL_20251121_092230118.mp4', title: 'סארי גלין', subtitle: 'שיר עם' },
-  { id: 'r2', category: 'repertoire', isLocal: true, file: 'PXL_20251121_092815776.mp4', title: 'אוזונדרה', subtitle: 'ריקוד אזרי' },
-  { id: 'r3', category: 'repertoire', isLocal: true, file: 'PXL_20251121_093401334.mp4', title: 'מוגאם שור — פתיחה', subtitle: 'אלתור' },
-  { id: 'r4', category: 'repertoire', isLocal: true, file: 'PXL_20251121_093944902.mp4', title: 'רֶנְג אזרי', subtitle: 'קטע מקצבי' },
-  { id: 'r5', category: 'repertoire', isLocal: true, file: 'PXL_20251121_094520561.mp4', title: 'טֶסְניף', subtitle: 'קטע שירה' },
-  { id: 'r6', category: 'repertoire', isLocal: true, file: 'PXL_20251121_095103188.mp4', title: 'שיר ערש אזרי', subtitle: 'מלודיה רכה' },
-  { id: 'r7', category: 'repertoire', isLocal: true, file: 'PXL_20251121_095647725.mp4', title: 'ריקוד חתונה', subtitle: 'מסורתי' },
-  { id: 'r8', category: 'repertoire', isLocal: true, file: 'PXL_20251121_100230443.mp4', title: 'נעימת סיום', subtitle: 'רפרטואר' },
+  { id: 'r1', category: 'repertoire', isLocal: true, file: 'PXL_20251121_092230118.mp4', title: 'סארי גלין', subtitle: 'שיר עם', maqam: 'shur' },
+  { id: 'r2', category: 'repertoire', isLocal: true, file: 'PXL_20251121_092815776.mp4', title: 'אוזונדרה', subtitle: 'ריקוד אזרי', maqam: 'ajam' },
+  { id: 'r3', category: 'repertoire', isLocal: true, file: 'PXL_20251121_093401334.mp4', title: 'מוגאם שור — פתיחה', subtitle: 'אלתור', maqam: 'shur' },
+  { id: 'r4', category: 'repertoire', isLocal: true, file: 'PXL_20251121_093944902.mp4', title: 'רֶנְג אזרי', subtitle: 'קטע מקצבי', maqam: 'rast' },
+  { id: 'r5', category: 'repertoire', isLocal: true, file: 'PXL_20251121_094520561.mp4', title: 'טֶסְניף', subtitle: 'קטע שירה', maqam: 'ajam' },
+  { id: 'r6', category: 'repertoire', isLocal: true, file: 'PXL_20251121_095103188.mp4', title: 'שיר ערש אזרי', subtitle: 'מלודיה רכה', maqam: 'shur' },
+  { id: 'r7', category: 'repertoire', isLocal: true, file: 'PXL_20251121_095647725.mp4', title: 'ריקוד חתונה', subtitle: 'מסורתי', maqam: 'rast' },
+  { id: 'r8', category: 'repertoire', isLocal: true, file: 'PXL_20251121_100230443.mp4', title: 'נעימת סיום', subtitle: 'רפרטואר', maqam: 'ajam' },
 ]
 
 /** Extract an 11-character YouTube id from a URL (or a bare id). */
@@ -44,7 +46,7 @@ function extractYouTubeId(input) {
   return null
 }
 
-/** Local recordings show a tidy video/music icon instead of a remote image. */
+/** Local recordings show a tidy video icon instead of a remote image. */
 function LocalThumb() {
   return (
     <div className="library__thumb library__thumb--placeholder" aria-hidden="true">
@@ -75,8 +77,8 @@ function YouTubeThumb({ youtubeId, alt }) {
 
 /**
  * Song library with two tabs. Lists local teacher recordings and YouTube songs
- * (which can be added at runtime). Selecting any song opens the SongInstructor
- * practice view. `onBackHome` returns to the dashboard.
+ * (added at runtime). Each card has a maqam dropdown; selecting a card opens the
+ * SongInstructor player. `onBackHome` returns to the dashboard.
  */
 export default function SongLibrary({ onBackHome }) {
   const [activeTab, setActiveTab] = useState('technique')
@@ -85,7 +87,7 @@ export default function SongLibrary({ onBackHome }) {
   const [addError, setAddError] = useState(null)
   const [selectedSong, setSelectedSong] = useState(null)
 
-  // Selecting a song launches the practice view for it.
+  // Selecting a song launches the player for it.
   if (selectedSong) {
     return (
       <SongInstructor song={selectedSong} onExit={() => setSelectedSong(null)} />
@@ -108,10 +110,15 @@ export default function SongLibrary({ onBackHome }) {
       youtubeId,
       title: 'שיר מיוטיוב',
       subtitle: youtubeId,
+      maqam: DEFAULT_MAQAM, // new YouTube songs default to the Ajam scale
     }
     setSongs((prev) => [...prev, newSong])
     setUrl('')
     setAddError(null)
+  }
+
+  function updateMaqam(id, maqam) {
+    setSongs((prev) => prev.map((s) => (s.id === id ? { ...s, maqam } : s)))
   }
 
   return (
@@ -163,10 +170,10 @@ export default function SongLibrary({ onBackHome }) {
 
       <ul className="library__list">
         {items.map((item) => (
-          <li key={item.id}>
+          <li key={item.id} className="library__card">
             <button
               type="button"
-              className="library__card"
+              className="library__card-main"
               onClick={() => setSelectedSong(item)}
             >
               {item.isLocal ? (
@@ -182,6 +189,22 @@ export default function SongLibrary({ onBackHome }) {
                 {item.isLocal ? 'מקומי' : 'יוטיוב'}
               </span>
             </button>
+
+            {/* Maqam dropdown — change the scale used by the player. */}
+            <label className="library__maqam" dir="rtl" lang="he">
+              <span className="library__maqam-label">מקאם</span>
+              <select
+                className="library__maqam-select"
+                value={item.maqam}
+                onChange={(e) => updateMaqam(item.id, e.target.value)}
+              >
+                {MAQAM_OPTIONS.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.label}
+                  </option>
+                ))}
+              </select>
+            </label>
           </li>
         ))}
       </ul>

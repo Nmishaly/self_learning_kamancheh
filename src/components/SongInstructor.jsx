@@ -1,62 +1,12 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { usePitchDetector } from '../audio/usePitchDetector.js'
-import { centsBetween, centsToColor } from '../audio/pitch.js'
+import { useEffect, useRef, useState } from 'react'
+import { MAQAMS, DEFAULT_MAQAM } from '../data/maqams.js'
 import './SongInstructor.css'
 
-// ── Tuning / technique thresholds ──────────────────────────────────────────
-const IN_TUNE_CENTS = 15 // within this counts as "on the note"
-const STABILITY_MS = 900 // must hold a clean pitch this long to pass (Stability)
-const LEGATO_RMS_FLOOR = 0.02 // below this the bow envelope has effectively dropped
-const SILENT_CENTS = 60 // forces a red glow while no note is sounding
+// Playback tempo: each scale note lasts this many seconds.
+const NOTE_SECONDS = 0.9
+const SYNTH_GAIN = 0.25
 
-// ── Mock asset: the "Ajam / Mahur" scale on D, as demonstrated by the teacher ──
-// Each step ties a timeline slot to a target frequency, a string + finger on the
-// Kamancheh, a primary technique to focus on, and a Hebrew instruction.
-// Fingering ascends the D4 string (Open→Pinky) then the A4 string (1→3).
-const SCALE = [
-  {
-    id: 'step-1', solfege: 'Re', english: 'D', frequency: 293.66,
-    string: 'D4', finger: 'Open', technique: 'stability',
-    hebrew: 'מיתר רֶה פתוח — משכו קשת ארוכה ויציבה, בלי רעידות.',
-  },
-  {
-    id: 'step-2', solfege: 'Mi', english: 'E', frequency: 329.63,
-    string: 'D4', finger: '1', technique: 'legato',
-    hebrew: 'אצבע 1 — מי בֵּקאר. חַברו מהרֶה בלגאטו, בלי להרים את הקשת.',
-  },
-  {
-    id: 'step-3', solfege: 'Fa#', english: 'F#', frequency: 369.99,
-    string: 'D4', finger: '2', technique: 'legato',
-    hebrew: 'אצבע 2 — פה דיאז. שמרו על רצף הצליל מהמי.',
-  },
-  {
-    id: 'step-4', solfege: 'Sol', english: 'G', frequency: 392.0,
-    string: 'D4', finger: '3', technique: 'legato',
-    hebrew: 'אצבע 3 — סול. מעבר חלק, בלי הפסקה בקשת.',
-  },
-  {
-    id: 'step-5', solfege: 'La', english: 'A', frequency: 440.0,
-    string: 'D4', finger: 'Pinky', technique: 'stability',
-    hebrew: 'זֶרֶת (אצבע 4) — לָה. הניחו את הזרת בעדינות ושמרו על יציבות.',
-  },
-  {
-    id: 'step-6', solfege: 'Si', english: 'B', frequency: 493.88,
-    string: 'A4', finger: '1', technique: 'legato',
-    hebrew: 'עברו למיתר לָה. אצבע 1 — סי בֵּקאר, בתנועה רציפה.',
-  },
-  {
-    id: 'step-7', solfege: 'Do', english: 'C', frequency: 523.25,
-    string: 'A4', finger: '2', technique: 'stability',
-    hebrew: 'אצבע 2 — דו. צליל נקי ויציב, הקשיבו לאינטונציה.',
-  },
-  {
-    id: 'step-8', solfege: 'Re', english: 'D', frequency: 587.33,
-    string: 'A4', finger: '3', technique: 'stability',
-    hebrew: 'אצבע 3 — רֶה עליון. סיימו את הסולם בצליל ארוך ויציב.',
-  },
-]
-
-// The four open strings, drawn high → low. Each shows the five finger slots.
+// The four open strings, drawn high → low, each with five finger slots.
 const STRINGS = [
   { id: 'D5', solfege: 'Re' },
   { id: 'A4', solfege: 'La' },
@@ -64,125 +14,186 @@ const STRINGS = [
   { id: 'A3', solfege: 'La' },
 ]
 const FINGERS = [
-  { id: 'Open', label: 'O', name: 'Open' },
-  { id: '1', label: '1', name: 'Finger 1' },
-  { id: '2', label: '2', name: 'Finger 2' },
-  { id: '3', label: '3', name: 'Finger 3' },
-  { id: 'Pinky', label: 'ז', name: 'Pinky / Azeret' },
+  { id: 'Open', label: 'O' },
+  { id: '1', label: '1' },
+  { id: '2', label: '2' },
+  { id: '3', label: '3' },
+  { id: 'Pinky', label: 'ז' },
 ]
 
 /**
- * Stage 4 song instructor: walks the player through a scale with Hebrew
- * pedagogical cues, a string/finger map, and live audio validation of
- * Stability (sustained clean pitch) and Legato (no envelope drop between notes).
- *
- * Can be launched either from the curriculum (with a `stage`) or from the song
- * library (with a `song`); it uses the same hardcoded Ajam/Mahur exercise asset
- * in both cases.
+ * Song player / instructor. Auto-plays a maqam scale and synchronises a moving
+ * highlight on the fingerboard with the audio elapsed time.
+ *  - Local teacher videos play their original audio (<video>).
+ *  - YouTube songs (and curriculum stages) play a clean synth of the scale.
+ * Transport: ⏪ / ⏯ / ⏩, where skip jumps by musical phrase.
  *
  * Props: stage?, song?, onComplete(stageId)?, onExit().
  */
 export default function SongInstructor({ stage, song, onComplete, onExit }) {
-  // Header / button labels adapt to where we were launched from.
-  const headerLabel = song ? song.title : `Stage ${stage.number} · Ajam / Mahur`
+  const maqamId = (song && song.maqam) || DEFAULT_MAQAM
+  const maqam = MAQAMS[maqamId] || MAQAMS[DEFAULT_MAQAM]
+  const notes = maqam.notes
+  const total = notes.length * NOTE_SECONDS
+  const isLocalVideo = Boolean(song && song.isLocal)
+  const isYouTube = Boolean(song && !song.isLocal)
+
+  const headerLabel = song ? song.title : `Stage ${stage.number} · ${maqam.nameHe}`
   const backLabel = song ? '← ספרייה' : '← Roadmap'
-  const finishLabel = song ? 'חזרה לספרייה' : 'Back to Roadmap'
-  const handleFinish = () => (onComplete ? onComplete(stage.id) : onExit())
-  const [index, setIndex] = useState(0)
-  const [liveCents, setLiveCents] = useState(null) // null = silent
-  const [stability, setStability] = useState(0) // 0..1 progress
-  const [legatoBroken, setLegatoBroken] = useState(false)
-  const [results, setResults] = useState([]) // { legato: bool|null } per passed note
 
-  const finished = index >= SCALE.length
-  const step = finished ? null : SCALE[index]
+  const [isPlaying, setIsPlaying] = useState(false)
+  const [currentIndex, setCurrentIndex] = useState(0)
+  const [videoError, setVideoError] = useState(false)
 
-  // Per-note bookkeeping kept in refs so the rAF loop is render-independent.
-  const indexRef = useRef(0)
-  const holdMsRef = useRef(0)
-  const passedRef = useRef(false)
-  const legatoBrokenRef = useRef(false)
-  const lastTsRef = useRef(0)
+  const audioCtxRef = useRef(null)
+  const rafRef = useRef(null)
+  const startWallRef = useRef(0) // performance.now() when synth playback (re)started
+  const seekRef = useRef(0) // elapsed-seconds offset (synth)
+  const lastTriggeredRef = useRef(-1)
+  const videoRef = useRef(null)
 
-  // Reset tracking whenever the active note changes.
+  const step = notes[currentIndex]
+
+  // Tear down audio + animation on unmount.
   useEffect(() => {
-    indexRef.current = index
-    holdMsRef.current = 0
-    passedRef.current = false
-    legatoBrokenRef.current = false
-    lastTsRef.current = 0
-    setStability(0)
-    setLegatoBroken(false)
-    setLiveCents(null)
-  }, [index])
-
-  const handleFrame = useCallback(({ frequency, rms, timestamp }) => {
-    const current = SCALE[indexRef.current]
-    if (!current) return
-
-    const dt = lastTsRef.current ? timestamp - lastTsRef.current : 0
-    lastTsRef.current = timestamp
-
-    // Silence: the audio envelope dropped to zero — this breaks Legato and
-    // resets the Stability hold.
-    if (frequency === -1) {
-      legatoBrokenRef.current = true
-      holdMsRef.current = 0
-      setLegatoBroken(true)
-      setStability(0)
-      setLiveCents(null)
-      return
-    }
-
-    // A near-silent dip (quiet but not fully silent) also breaks Legato.
-    if (rms < LEGATO_RMS_FLOOR) {
-      legatoBrokenRef.current = true
-      setLegatoBroken(true)
-    }
-
-    const cents = centsBetween(frequency, current.frequency)
-    setLiveCents(cents)
-
-    // Stability: accumulate continuous in-tune time.
-    if (Math.abs(cents) <= IN_TUNE_CENTS) {
-      holdMsRef.current += dt
-    } else {
-      holdMsRef.current = 0
-    }
-    const progress = Math.min(holdMsRef.current / STABILITY_MS, 1)
-    setStability(progress)
-
-    if (progress >= 1 && !passedRef.current) {
-      passedRef.current = true
-      // The first note has no preceding note to connect from.
-      const legato = indexRef.current === 0 ? null : !legatoBrokenRef.current
-      setResults((prev) => [...prev, { legato }])
-      setIndex((i) => i + 1)
+    return () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current)
+      if (audioCtxRef.current) audioCtxRef.current.close()
     }
   }, [])
 
-  const { isListening, error, start, stop } = usePitchDetector({ onFrame: handleFrame })
+  function ensureCtx() {
+    if (!audioCtxRef.current) {
+      const Ctx = window.AudioContext || window.webkitAudioContext
+      audioCtxRef.current = new Ctx()
+    }
+    return audioCtxRef.current
+  }
 
-  // Stop the microphone once the whole scale is done.
-  useEffect(() => {
-    if (finished && isListening) stop()
-  }, [finished, isListening, stop])
+  // A short, clean digital synth tone with a quick attack/decay envelope.
+  function playTone(frequency) {
+    const ctx = ensureCtx()
+    const now = ctx.currentTime
+    const osc = ctx.createOscillator()
+    const gain = ctx.createGain()
+    osc.type = 'triangle'
+    osc.frequency.value = frequency
+    gain.gain.setValueAtTime(0.0001, now)
+    gain.gain.exponentialRampToValueAtTime(SYNTH_GAIN, now + 0.02)
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + NOTE_SECONDS * 0.95)
+    osc.connect(gain).connect(ctx.destination)
+    osc.start(now)
+    osc.stop(now + NOTE_SECONDS)
+  }
 
-  // Colour for the live glow: green when in tune, red when off or silent.
-  const glowCents = liveCents == null ? SILENT_CENTS : liveCents
-  const glowActive = isListening && !finished
-  const sectionStyle = glowActive
-    ? {
-        boxShadow: `inset 0 0 140px 0 ${centsToColor(glowCents, 28)}`,
-        borderColor: centsToColor(glowCents, 40),
+  function stopLoop() {
+    if (rafRef.current) {
+      cancelAnimationFrame(rafRef.current)
+      rafRef.current = null
+    }
+  }
+
+  function frame() {
+    const elapsed =
+      isLocalVideo && videoRef.current
+        ? videoRef.current.currentTime
+        : seekRef.current + (performance.now() - startWallRef.current) / 1000
+
+    if (elapsed >= total) {
+      finishPlayback()
+      return
+    }
+
+    const idx = Math.min(Math.floor(elapsed / NOTE_SECONDS), notes.length - 1)
+    if (idx !== lastTriggeredRef.current) {
+      lastTriggeredRef.current = idx
+      setCurrentIndex(idx)
+      if (!isLocalVideo) playTone(notes[idx].frequency)
+    }
+    rafRef.current = requestAnimationFrame(frame)
+  }
+
+  async function play() {
+    if (seekRef.current >= total) {
+      seekRef.current = 0
+      setCurrentIndex(0)
+    }
+    lastTriggeredRef.current = -1
+
+    if (isLocalVideo) {
+      const video = videoRef.current
+      if (video) {
+        try {
+          await video.play()
+        } catch {
+          setVideoError(true)
+        }
       }
-    : undefined
+    } else {
+      const ctx = ensureCtx()
+      if (ctx.state === 'suspended') await ctx.resume()
+      startWallRef.current = performance.now()
+    }
 
-  const legatoCount = results.filter((r) => r.legato === true).length
-  const legatoTotal = results.filter((r) => r.legato !== null).length
+    setIsPlaying(true)
+    stopLoop()
+    rafRef.current = requestAnimationFrame(frame)
+  }
+
+  function pause() {
+    stopLoop()
+    if (isLocalVideo && videoRef.current) {
+      videoRef.current.pause()
+    } else {
+      seekRef.current += (performance.now() - startWallRef.current) / 1000
+    }
+    setIsPlaying(false)
+  }
+
+  function finishPlayback() {
+    stopLoop()
+    if (isLocalVideo && videoRef.current) videoRef.current.pause()
+    seekRef.current = total
+    setIsPlaying(false)
+    setCurrentIndex(notes.length - 1)
+  }
+
+  function togglePlay() {
+    if (isPlaying) pause()
+    else play()
+  }
+
+  function seekToIndex(idx) {
+    const clamped = Math.max(0, Math.min(idx, notes.length - 1))
+    const time = clamped * NOTE_SECONDS
+    seekRef.current = time
+    lastTriggeredRef.current = -1
+    setCurrentIndex(clamped)
+    if (isLocalVideo && videoRef.current) videoRef.current.currentTime = time
+    if (isPlaying) startWallRef.current = performance.now()
+  }
+
+  // Skip by musical phrase (tetrachord), not single notes.
+  function skipNext() {
+    const next = maqam.phraseStarts.find((p) => p > currentIndex)
+    seekToIndex(next ?? notes.length - 1)
+  }
+
+  function skipPrev() {
+    const reversed = [...maqam.phraseStarts].reverse()
+    const currentPhrase = reversed.find((p) => p <= currentIndex) ?? 0
+    if (currentIndex > currentPhrase) {
+      seekToIndex(currentPhrase)
+    } else {
+      const prev = reversed.find((p) => p < currentPhrase)
+      seekToIndex(prev ?? 0)
+    }
+  }
+
+  const progress = ((currentIndex + 1) / notes.length) * 100
 
   return (
-    <section className="song" style={sectionStyle}>
+    <section className="song">
       <header className="song__topbar">
         <button type="button" className="song__back" onClick={onExit}>
           {backLabel}
@@ -192,32 +203,64 @@ export default function SongInstructor({ stage, song, onComplete, onExit }) {
         </span>
       </header>
 
-      {/* 1. Hebrew pedagogical instruction block */}
-      <div className="song__instruction" dir="rtl" lang="he">
-        <span className="song__instruction-eyebrow">הוראת המורה</span>
-        <p className="song__instruction-text">
-          {finished ? 'כל הכבוד! השלמתם את הסולם.' : step.hebrew}
-        </p>
+      {/* Media: local video, or a synth indicator (YouTube thumbnail / stage) */}
+      <div className="song__media">
+        {isLocalVideo ? (
+          videoError ? (
+            <div className="song__media-fallback" dir="rtl" lang="he">
+              וידאו מקומי לא נמצא — חברו את קובץ הווידאו
+            </div>
+          ) : (
+            <video
+              ref={videoRef}
+              className="song__video"
+              src={`/videos/${song.file}`}
+              playsInline
+              onEnded={finishPlayback}
+              onError={() => setVideoError(true)}
+            />
+          )
+        ) : (
+          <div className="song__synth">
+            {isYouTube && (
+              <img
+                className="song__synth-thumb"
+                src={`https://img.youtube.com/vi/${song.youtubeId}/mqdefault.jpg`}
+                alt=""
+                aria-hidden="true"
+              />
+            )}
+            <span className="song__synth-badge" dir="rtl" lang="he">
+              ♪ מנוגן בסינתיסייזר · {maqam.nameHe}
+            </span>
+          </div>
+        )}
       </div>
 
-      {/* Timeline of the scale with a moving cursor */}
-      <div className="song__timeline">
-        {SCALE.map((s, i) => (
+      {/* Hebrew Solfège instruction */}
+      <div className="song__instruction" dir="rtl" lang="he">
+        <span className="song__instruction-eyebrow">נגנו יחד</span>
+        <p className="song__instruction-text">{step.solfegeHe}</p>
+      </div>
+
+      {/* Scale timeline with the moving cursor */}
+      <div className="song__timeline" dir="rtl">
+        {notes.map((n, i) => (
           <span
-            key={s.id}
-            className={`song__slot ${i < index ? 'song__slot--done' : ''} ${
-              i === index ? 'song__slot--active' : ''
+            key={`${n.english}-${i}`}
+            className={`song__slot ${i < currentIndex ? 'song__slot--done' : ''} ${
+              i === currentIndex ? 'song__slot--active' : ''
             }`}
           >
-            {s.solfege}
+            {n.solfegeHe}
           </span>
         ))}
       </div>
 
-      {/* 2. String + finger map */}
+      {/* String + finger map, synced to the elapsed time */}
       <div className="song__fretboard" aria-hidden="true">
         {STRINGS.map((s) => {
-          const onThisString = step && step.string === s.id
+          const onThisString = step.string === s.id
           return (
             <div
               key={s.id}
@@ -233,16 +276,6 @@ export default function SongInstructor({ stage, song, onComplete, onExit }) {
                     <span
                       key={f.id}
                       className={`song__finger ${active ? 'song__finger--active' : ''}`}
-                      style={
-                        active && liveCents != null
-                          ? {
-                              background: centsToColor(liveCents, 50),
-                              borderColor: centsToColor(liveCents, 55),
-                              color: '#07120f',
-                            }
-                          : undefined
-                      }
-                      title={f.name}
                     >
                       {f.label}
                     </span>
@@ -254,88 +287,45 @@ export default function SongInstructor({ stage, song, onComplete, onExit }) {
         })}
       </div>
 
-      {!finished && (
-        <>
-          {/* Current target name: Solfège + English combined */}
-          <div className="song__target">
-            <span className="song__target-label">
-              {step.solfege} / {step.english}
-            </span>
-            <span className="song__target-cents">
-              {liveCents == null
-                ? '—'
-                : `${liveCents > 0 ? '+' : ''}${liveCents} cents`}
-            </span>
-          </div>
+      {/* Progress + transport controls */}
+      <div className="song__progressbar">
+        <div className="song__progressbar-fill" style={{ width: `${progress}%` }} />
+      </div>
 
-          {/* 3. Technique validations */}
-          <div className="song__techniques">
-            <div className="song__technique">
-              <div className="song__technique-head">
-                <span>Stability · יציבות</span>
-                <span>{Math.round(stability * 100)}%</span>
-              </div>
-              <div className="song__meter">
-                <div
-                  className="song__meter-fill"
-                  style={{
-                    width: `${Math.round(stability * 100)}%`,
-                    background: centsToColor(liveCents == null ? SILENT_CENTS : liveCents, 50),
-                  }}
-                />
-              </div>
-            </div>
-
-            <div
-              className={`song__legato ${
-                index === 0
-                  ? 'song__legato--na'
-                  : legatoBroken
-                    ? 'song__legato--broken'
-                    : 'song__legato--ok'
-              }`}
-            >
-              Legato · לגאטו:{' '}
-              {index === 0 ? 'נקודת התחלה' : legatoBroken ? 'נקטע ✗' : 'רציף ✓'}
-            </div>
-          </div>
-        </>
-      )}
-
-      {finished && (
-        <div className="song__done">
-          <div className="song__done-icon">♪</div>
-          <h2 className="song__done-title">סיימתם את הסולם!</h2>
-          <p className="song__done-text">
-            Legato held on {legatoCount} of {legatoTotal} connections.
-          </p>
-          <div className="song__done-actions">
-            <button
-              type="button"
-              className="song__button song__button--ghost"
-              onClick={() => {
-                setResults([])
-                setIndex(0)
-              }}
-            >
-              Play again
-            </button>
-            <button type="button" className="song__button" onClick={handleFinish}>
-              {finishLabel}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {error && <p className="song__error">{error}</p>}
-
-      {!finished && (
+      <div className="song__transport">
         <button
           type="button"
-          className={`song__button song__mic ${isListening ? 'song__button--ghost' : ''}`}
-          onClick={isListening ? stop : start}
+          className="song__ctrl"
+          onClick={skipPrev}
+          aria-label="Previous phrase"
         >
-          {isListening ? 'Stop' : 'Enable Microphone'}
+          ⏪
+        </button>
+        <button
+          type="button"
+          className="song__ctrl song__ctrl--play"
+          onClick={togglePlay}
+          aria-label={isPlaying ? 'Pause' : 'Play'}
+        >
+          {isPlaying ? '⏸' : '▶'}
+        </button>
+        <button
+          type="button"
+          className="song__ctrl"
+          onClick={skipNext}
+          aria-label="Next phrase"
+        >
+          ⏩
+        </button>
+      </div>
+
+      {onComplete && (
+        <button
+          type="button"
+          className="song__button song__button--ghost"
+          onClick={() => onComplete(stage.id)}
+        >
+          סמן שלב כהושלם
         </button>
       )}
     </section>

@@ -6,10 +6,116 @@
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+
+/* ── Media block ───────────────────────────────────────────────── */
+.song__media {
+  width: 100%;
+  border-radius: 16px;
+  overflow: hidden;
   border: 1px solid var(--border);
-  border-radius: 18px;
-  /* The inset glow (set inline) transitions smoothly red → green with pitch. */
-  transition: box-shadow 0.12s linear, border-color 0.12s linear;
+  background: var(--surface);
+}
+
+.song__video {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: #000;
+  object-fit: cover;
+}
+
+.song__media-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 16 / 9;
+  padding: 16px;
+  text-align: center;
+  font-size: 0.9rem;
+  color: var(--text-dim);
+}
+
+.song__synth {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 16 / 9;
+}
+
+.song__synth-thumb {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.35;
+}
+
+.song__synth-badge {
+  position: relative;
+  z-index: 1;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--accent);
+  padding: 8px 14px;
+  background: rgba(13, 13, 15, 0.7);
+  border: 1px solid rgba(94, 234, 212, 0.3);
+  border-radius: 999px;
+}
+
+/* ── Progress + transport ──────────────────────────────────────── */
+.song__progressbar {
+  width: 100%;
+  height: 6px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.song__progressbar-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 999px;
+  transition: width 0.15s linear;
+}
+
+.song__transport {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+}
+
+.song__ctrl {
+  width: 56px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.3rem;
+  color: var(--text);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.05s ease, background 0.12s ease;
+}
+
+.song__ctrl:active {
+  transform: scale(0.94);
+}
+
+.song__ctrl--play {
+  width: 72px;
+  height: 72px;
+  font-size: 1.6rem;
+  color: #07120f;
+  background: var(--accent);
+  border-color: var(--accent);
 }
 
 .song__topbar {
@@ -168,8 +274,11 @@
 }
 
 .song__finger--active {
+  color: #07120f;
+  background: var(--accent);
+  border-color: var(--accent);
   transform: scale(1.18);
-  box-shadow: 0 0 18px 2px rgba(94, 234, 212, 0.35);
+  box-shadow: 0 0 18px 2px rgba(94, 234, 212, 0.45);
 }
 
 /* Current target */
