@@ -6,6 +6,27 @@
 // E4 (329.63) lowered by a quarter tone (50 cents): 329.63 * 2^(-50/1200).
 const E_HALF_FLAT_4 = 320.24
 
+// Frequencies (A4 = 440 Hz) and Solfège/English labels for the notes used by
+// melodies, so a melody can be written as a simple list of note names.
+const NOTE_LIBRARY = {
+  D4: { label: 'Re / D', frequency: 293.66 },
+  E4: { label: 'Mi / E', frequency: 329.63 },
+  F4: { label: 'Fa / F', frequency: 349.23 },
+  G4: { label: 'Sol / G', frequency: 392.0 },
+  A4: { label: 'La / A', frequency: 440.0 },
+}
+
+// Expand a list of note names into melody entries with stable, unique ids
+// (the same note can appear many times in a tune).
+function buildMelody(noteNames) {
+  return noteNames.map((short, index) => ({
+    id: `mel-${index}-${short}`,
+    short,
+    label: NOTE_LIBRARY[short].label,
+    frequency: NOTE_LIBRARY[short].frequency,
+  }))
+}
+
 export const STAGES = [
   {
     id: 'stage-1',
@@ -52,13 +73,17 @@ export const STAGES = [
     id: 'stage-4',
     number: 4,
     title: 'Traditional Melodies',
-    summary: 'Apply your skills to the core notes of “Sarı Gelin”.',
-    targets: [
-      { id: 's4-d4', label: 'Re / D', short: 'D4', frequency: 293.66 },
-      { id: 's4-e4', label: 'Mi / E', short: 'E4', frequency: 329.63 },
-      { id: 's4-f4', label: 'Fa / F', short: 'F4', frequency: 349.23 },
-      { id: 's4-g4', label: 'Sol / G', short: 'G4', frequency: 392.0 },
-      { id: 's4-a4', label: 'La / A', short: 'A4', frequency: 440.0 },
-    ],
+    summary: 'Play a simplified arrangement of the folk song “Sarı Gelin”.',
+    // A melody stage is practised note-by-note against a moving cursor rather
+    // than as isolated targets.
+    type: 'melody',
+    melody: buildMelody([
+      // Phrase 1 — descending opening line.
+      'A4', 'A4', 'G4', 'F4', 'G4', 'A4',
+      // Phrase 2 — settling toward the tonic.
+      'F4', 'E4', 'D4', 'E4', 'F4', 'E4',
+      // Phrase 3 — closing cadence on D.
+      'D4', 'F4', 'E4', 'D4',
+    ]),
   },
 ]

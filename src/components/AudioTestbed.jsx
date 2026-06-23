@@ -137,10 +137,10 @@ function frequencyToNote(frequency) {
   }
 }
 
-// How close (in cents) counts as "in tune" while holding a target, and how
-// long that must be sustained before the target is considered passed.
+// How close (in cents) counts as "in tune" while holding a target, and the
+// default time it must be sustained before the target is considered passed.
 const IN_TUNE_CENTS = 15
-const HOLD_MS = 1200
+const DEFAULT_HOLD_MS = 1200
 
 /**
  * Reusable pitch tuner with a colour-changing accuracy indicator and live
@@ -152,8 +152,13 @@ const HOLD_MS = 1200
  *             for notes like the Shur E half-flat that aren't on a piano.
  *   onPass  – optional callback fired once when the player holds `target` in
  *             tune long enough to pass it.
+ *   holdMs  – how long the target must be held in tune to pass (default 1200).
  */
-export default function AudioTestbed({ target = null, onPass }) {
+export default function AudioTestbed({
+  target = null,
+  onPass,
+  holdMs = DEFAULT_HOLD_MS,
+}) {
   const [isListening, setIsListening] = useState(false)
   const [reading, setReading] = useState(null)
   const [holdProgress, setHoldProgress] = useState(0)
@@ -174,12 +179,16 @@ export default function AudioTestbed({ target = null, onPass }) {
   // stale values from the closure it was started with.
   const targetRef = useRef(target)
   const onPassRef = useRef(onPass)
+  const holdMsRefProp = useRef(holdMs)
   useEffect(() => {
     targetRef.current = target
   }, [target])
   useEffect(() => {
     onPassRef.current = onPass
   }, [onPass])
+  useEffect(() => {
+    holdMsRefProp.current = holdMs
+  }, [holdMs])
 
   // Hold-to-pass bookkeeping.
   const activeTargetIdRef = useRef(null)
@@ -272,7 +281,7 @@ export default function AudioTestbed({ target = null, onPass }) {
       } else {
         holdMsRef.current = 0
       }
-      const progress = Math.min(holdMsRef.current / HOLD_MS, 1)
+      const progress = Math.min(holdMsRef.current / holdMsRefProp.current, 1)
       setHoldProgress(progress)
       if (progress >= 1 && !passedRef.current) {
         passedRef.current = true

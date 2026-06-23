@@ -149,3 +149,20 @@
 .roadmap__node--locked .roadmap__node-status {
   color: var(--text-dim);
 }
+
+.roadmap__reset {
+  align-self: center;
+  padding: 10px 18px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-dim);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.roadmap__reset:active {
+  background: var(--surface);
+}

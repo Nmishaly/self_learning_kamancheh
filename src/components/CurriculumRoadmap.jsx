@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { STAGES } from '../data/curriculum.js'
 import StagePractice from './StagePractice.jsx'
+import MelodyPlayer from './MelodyPlayer.jsx'
 import './CurriculumRoadmap.css'
 
 const STORAGE_KEY = 'kamancheh-progress'
@@ -69,10 +70,17 @@ export default function CurriculumRoadmap() {
     setActiveStageId(null)
   }
 
+  function handleReset() {
+    if (window.confirm('Reset all progress? This cannot be undone.')) {
+      setCompletedIds([])
+    }
+  }
+
   const activeStage = STAGES.find((s) => s.id === activeStageId)
   if (activeStage) {
+    const PracticeView = activeStage.type === 'melody' ? MelodyPlayer : StagePractice
     return (
-      <StagePractice
+      <PracticeView
         stage={activeStage}
         onComplete={handleComplete}
         onExit={() => setActiveStageId(null)}
@@ -139,6 +147,12 @@ export default function CurriculumRoadmap() {
           )
         })}
       </ol>
+
+      {completedCount > 0 && (
+        <button type="button" className="roadmap__reset" onClick={handleReset}>
+          Reset progress
+        </button>
+      )}
     </section>
   )
 }
