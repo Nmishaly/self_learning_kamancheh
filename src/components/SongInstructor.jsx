@@ -4,7 +4,20 @@ import './SongInstructor.css'
 
 // Playback tempo: each scale note lasts this many seconds.
 const NOTE_SECONDS = 0.9
-const SYNTH_GAIN = 0.25
+const SYNTH_GAIN = 0.22
+
+// A short white-noise buffer (cached on the AudioContext) used for the bow
+// "scratch" transient at the start of each note.
+function getNoiseBuffer(ctx) {
+  if (!ctx._kamNoise) {
+    const length = Math.floor(ctx.sampleRate * 0.3)
+    const buffer = ctx.createBuffer(1, length, ctx.sampleRate)
+    const data = buffer.getChannelData(0)
+    for (let i = 0; i < length; i++) data[i] = Math.random() * 2 - 1
+    ctx._kamNoise = buffer
+  }
+  return ctx._kamNoise
+}
 
 // The four open strings, drawn high → low, each with five finger slots.
 const STRINGS = [
@@ -102,40 +115,77 @@ export default function SongInstructor({ stage, song, onComplete, onExit }) {
     return audioCtxRef.current
   }
 
-  // A bowed-string (Kamancheh-like) tone: a sawtooth (rich, string-like) mixed
-  // with a triangle (warm body), softened by a low-pass filter, shaped with a
-  // gentle bow attack, a settle to sustain, and a short release.
+  // A bowed-string (Kamancheh) voice built from: two slightly-detuned sawtooth
+  // oscillators (the bowed string's rich, edgy core) + a triangle (warm body),
+  // an eased-in vibrato LFO on pitch, a bow-bite low-pass filter envelope, a
+  // parallel band-pass "body resonance", a brief filtered-noise bow scratch at
+  // the onset, and an attack/decay/sustain/release amplitude envelope.
   function playTone(frequency, duration = NOTE_SECONDS) {
     const ctx = ensureCtx()
     const now = ctx.currentTime
-    // Clamp so very short gaps still sound and very long gaps don't drone.
-    const dur = Math.min(Math.max(duration, 0.12), 2.5)
+    const dur = Math.min(Math.max(duration, 0.12), 3.0)
     const peak = SYNTH_GAIN
-    const sustain = SYNTH_GAIN * 0.7
-    const attack = Math.min(0.06, dur * 0.25) // soft bow onset, not a pluck
-    const decay = Math.min(0.1, dur * 0.25)
-    const release = Math.min(0.08, dur * 0.25)
+    const sustain = SYNTH_GAIN * 0.75
+    const attack = Math.min(0.08, dur * 0.3) // slow bow onset (not a pluck)
+    const decay = Math.min(0.12, dur * 0.3)
+    const release = Math.min(0.12, dur * 0.3)
 
-    const saw = ctx.createOscillator()
-    saw.type = 'sawtooth'
-    saw.frequency.value = frequency
-    const tri = ctx.createOscillator()
-    tri.type = 'triangle'
-    tri.frequency.value = frequency
+    // Oscillators.
+    const osc1 = ctx.createOscillator()
+    osc1.type = 'sawtooth'
+    osc1.frequency.value = frequency
+    osc1.detune.value = -6
+    const osc2 = ctx.createOscillator()
+    osc2.type = 'sawtooth'
+    osc2.frequency.value = frequency
+    osc2.detune.value = 6
+    const osc3 = ctx.createOscillator()
+    osc3.type = 'triangle'
+    osc3.frequency.value = frequency
 
-    // Mix: mostly sawtooth for the bowed-string edge, triangle for warmth.
-    const sawGain = ctx.createGain()
-    sawGain.gain.value = 0.6
-    const triGain = ctx.createGain()
-    triGain.gain.value = 0.4
+    const oscMix = ctx.createGain()
+    const g1 = ctx.createGain()
+    g1.gain.value = 0.32
+    const g2 = ctx.createGain()
+    g2.gain.value = 0.32
+    const g3 = ctx.createGain()
+    g3.gain.value = 0.36
+    osc1.connect(g1).connect(oscMix)
+    osc2.connect(g2).connect(oscMix)
+    osc3.connect(g3).connect(oscMix)
 
-    // Tame the sawtooth's harsh upper harmonics so it reads as bowed, not buzzy.
-    const filter = ctx.createBiquadFilter()
-    filter.type = 'lowpass'
-    filter.frequency.value = 3200
-    filter.Q.value = 0.7
+    // Vibrato (eased in after the attack, like a player settling the bow).
+    const lfo = ctx.createOscillator()
+    lfo.type = 'sine'
+    lfo.frequency.value = 5.5
+    const lfoDepth = ctx.createGain()
+    lfoDepth.gain.setValueAtTime(0, now)
+    lfoDepth.gain.linearRampToValueAtTime(13, now + Math.min(0.25, dur * 0.5)) // ±13 cents
+    lfo.connect(lfoDepth)
+    lfoDepth.connect(osc1.detune)
+    lfoDepth.connect(osc2.detune)
+    lfoDepth.connect(osc3.detune)
 
-    // Bowed-string amplitude envelope (attack → decay → sustain → release).
+    // Bow-bite low-pass: opens quickly on attack, then settles.
+    const lowpass = ctx.createBiquadFilter()
+    lowpass.type = 'lowpass'
+    lowpass.Q.value = 0.8
+    lowpass.frequency.setValueAtTime(700, now)
+    lowpass.frequency.linearRampToValueAtTime(Math.min(6000, frequency * 8), now + attack)
+    lowpass.frequency.exponentialRampToValueAtTime(
+      Math.min(3500, frequency * 5),
+      now + attack + decay,
+    )
+
+    // Parallel body resonance (the instrument's bowl/membrane).
+    const body = ctx.createBiquadFilter()
+    body.type = 'bandpass'
+    body.frequency.value = 420
+    body.Q.value = 1.2
+    const bodyGain = ctx.createGain()
+    bodyGain.gain.value = 0.18
+
+    // Amplitude ADSR.
     const amp = ctx.createGain()
     amp.gain.setValueAtTime(0.0001, now)
     amp.gain.linearRampToValueAtTime(peak, now + attack)
@@ -144,17 +194,34 @@ export default function SongInstructor({ stage, song, onComplete, onExit }) {
     amp.gain.setValueAtTime(sustain, releaseStart)
     amp.gain.exponentialRampToValueAtTime(0.0001, now + dur)
 
-    saw.connect(sawGain)
-    tri.connect(triGain)
-    sawGain.connect(filter)
-    triGain.connect(filter)
-    filter.connect(amp)
+    oscMix.connect(lowpass).connect(amp)
+    oscMix.connect(body).connect(bodyGain).connect(amp)
     amp.connect(ctx.destination)
 
-    saw.start(now)
-    tri.start(now)
-    saw.stop(now + dur)
-    tri.stop(now + dur)
+    // Bow-scratch transient at the onset.
+    const noise = ctx.createBufferSource()
+    noise.buffer = getNoiseBuffer(ctx)
+    const noiseBp = ctx.createBiquadFilter()
+    noiseBp.type = 'bandpass'
+    noiseBp.frequency.value = Math.min(4000, frequency * 4)
+    noiseBp.Q.value = 0.8
+    const noiseGain = ctx.createGain()
+    noiseGain.gain.setValueAtTime(0.0001, now)
+    noiseGain.gain.linearRampToValueAtTime(SYNTH_GAIN * 0.22, now + 0.012)
+    noiseGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.12)
+    noise.connect(noiseBp).connect(noiseGain).connect(ctx.destination)
+
+    osc1.start(now)
+    osc2.start(now)
+    osc3.start(now)
+    lfo.start(now)
+    noise.start(now)
+    const end = now + dur
+    osc1.stop(end)
+    osc2.stop(end)
+    osc3.stop(end)
+    lfo.stop(end)
+    noise.stop(now + 0.2)
   }
 
   function stopLoop() {
