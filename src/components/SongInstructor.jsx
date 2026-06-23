@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { MAQAMS, DEFAULT_MAQAM, resolveHebrewNote } from '../data/maqams.js'
+import { createKamanchehSampler } from '../audio/kamanchehSampler.js'
 import './SongInstructor.css'
 
 // Playback tempo: each scale note lasts this many seconds.
@@ -91,6 +92,7 @@ export default function SongInstructor({ stage, song, onComplete, onExit }) {
   const [videoError, setVideoError] = useState(false)
 
   const audioCtxRef = useRef(null)
+  const samplerRef = useRef(null)
   const rafRef = useRef(null)
   const startWallRef = useRef(0) // audio-clock anchor: ctx.currentTime at elapsed 0
   const seekRef = useRef(0) // elapsed-seconds offset (synth)
@@ -111,6 +113,10 @@ export default function SongInstructor({ stage, song, onComplete, onExit }) {
     if (!audioCtxRef.current) {
       const Ctx = window.AudioContext || window.webkitAudioContext
       audioCtxRef.current = new Ctx()
+      // Real-sample Kamancheh; loads its manifest in the background and falls
+      // back to the synth until sample files are present.
+      samplerRef.current = createKamanchehSampler(audioCtxRef.current)
+      samplerRef.current.load().catch(() => {})
     }
     return audioCtxRef.current
   }
@@ -124,6 +130,12 @@ export default function SongInstructor({ stage, song, onComplete, onExit }) {
     const ctx = ensureCtx()
     const now = ctx.currentTime
     const dur = Math.min(Math.max(duration, 0.12), 3.0)
+
+    // Prefer real recorded samples when available; otherwise synthesize below.
+    if (samplerRef.current && samplerRef.current.play(frequency, now, dur)) {
+      return
+    }
+
     const peak = SYNTH_GAIN
     const sustain = SYNTH_GAIN * 0.75
     const attack = Math.min(0.08, dur * 0.3) // slow bow onset (not a pluck)
