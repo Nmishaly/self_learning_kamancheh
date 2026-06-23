@@ -76,9 +76,18 @@ const FINGERS = [
  * pedagogical cues, a string/finger map, and live audio validation of
  * Stability (sustained clean pitch) and Legato (no envelope drop between notes).
  *
- * Props: stage, onComplete(stageId), onExit().
+ * Can be launched either from the curriculum (with a `stage`) or from the song
+ * library (with a `song`); it uses the same hardcoded Ajam/Mahur exercise asset
+ * in both cases.
+ *
+ * Props: stage?, song?, onComplete(stageId)?, onExit().
  */
-export default function SongInstructor({ stage, onComplete, onExit }) {
+export default function SongInstructor({ stage, song, onComplete, onExit }) {
+  // Header / button labels adapt to where we were launched from.
+  const headerLabel = song ? song.title : `Stage ${stage.number} · Ajam / Mahur`
+  const backLabel = song ? '← ספרייה' : '← Roadmap'
+  const finishLabel = song ? 'חזרה לספרייה' : 'Back to Roadmap'
+  const handleFinish = () => (onComplete ? onComplete(stage.id) : onExit())
   const [index, setIndex] = useState(0)
   const [liveCents, setLiveCents] = useState(null) // null = silent
   const [stability, setStability] = useState(0) // 0..1 progress
@@ -176,9 +185,11 @@ export default function SongInstructor({ stage, onComplete, onExit }) {
     <section className="song" style={sectionStyle}>
       <header className="song__topbar">
         <button type="button" className="song__back" onClick={onExit}>
-          ← Roadmap
+          {backLabel}
         </button>
-        <span className="song__stage-num">Stage {stage.number} · Ajam / Mahur</span>
+        <span className="song__stage-num" dir={song ? 'rtl' : undefined}>
+          {headerLabel}
+        </span>
       </header>
 
       {/* 1. Hebrew pedagogical instruction block */}
@@ -309,12 +320,8 @@ export default function SongInstructor({ stage, onComplete, onExit }) {
             >
               Play again
             </button>
-            <button
-              type="button"
-              className="song__button"
-              onClick={() => onComplete(stage.id)}
-            >
-              Back to Roadmap
+            <button type="button" className="song__button" onClick={handleFinish}>
+              {finishLabel}
             </button>
           </div>
         </div>

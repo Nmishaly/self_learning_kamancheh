@@ -74,26 +74,24 @@
 }
 
 .library__card {
+  width: 100%;
   display: flex;
   align-items: center;
   gap: 14px;
   padding: 10px;
+  font: inherit;
+  text-align: inherit;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 14px;
-  text-decoration: none;
   color: inherit;
   cursor: pointer;
   transition: border-color 0.12s ease, background 0.12s ease;
   -webkit-tap-highlight-color: transparent;
 }
 
-a.library__card:active {
+.library__card:active {
   background: var(--surface-2);
-}
-
-.library__card--pending {
-  cursor: default;
 }
 
 .library__thumb {
@@ -142,7 +140,49 @@ a.library__card:active {
   border-radius: 999px;
 }
 
-a.library__card .library__card-status {
-  color: var(--accent);
-  border-color: rgba(94, 234, 212, 0.3);
+/* Add-song form (repertoire tab) */
+.library__add {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.library__add-input {
+  flex: 1 1 100%;
+  padding: 12px 14px;
+  font-size: 0.9rem;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  text-align: right;
+}
+
+.library__add-input::placeholder {
+  color: var(--text-dim);
+}
+
+.library__add-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.library__add-button {
+  flex: 1 1 100%;
+  padding: 13px;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: #07120f;
+  background: var(--accent);
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.library__add-error {
+  flex: 1 1 100%;
+  font-size: 0.82rem;
+  color: #fda4af;
+  text-align: right;
 }
