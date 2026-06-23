@@ -51,7 +51,7 @@ function loadProgress() {
   }
 }
 
-export default function CurriculumRoadmap() {
+export default function CurriculumRoadmap({ onBackHome }) {
   const [completedIds, setCompletedIds] = useState(loadProgress)
   const [activeStageId, setActiveStageId] = useState(null)
 
@@ -99,6 +99,11 @@ export default function CurriculumRoadmap() {
 
   return (
     <section className="roadmap">
+      <button type="button" className="roadmap__home" onClick={onBackHome}>
+        <span dir="rtl" lang="he">
+          ← חזרה למסך הבית
+        </span>
+      </button>
       <header className="roadmap__header">
         <h1 className="roadmap__title">Kamancheh Path</h1>
         <p className="roadmap__subtitle">

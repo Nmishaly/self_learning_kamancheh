@@ -1,0 +1,68 @@
+.dashboard {
+  width: 100%;
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 48px 20px calc(28px + env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+.dashboard__header {
+  text-align: center;
+}
+
+.dashboard__title {
+  margin: 0;
+  font-size: 1.7rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+/* Two equal square cards side by side. */
+.dashboard__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.dashboard__card {
+  aspect-ratio: 1 / 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 16px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  cursor: pointer;
+  transition: border-color 0.12s ease, transform 0.06s ease, background 0.12s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.dashboard__card:active {
+  transform: scale(0.98);
+  background: var(--surface-2);
+}
+
+.dashboard__card-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  color: var(--accent);
+  background: rgba(94, 234, 212, 0.1);
+  border: 1px solid rgba(94, 234, 212, 0.25);
+}
+
+.dashboard__card-label {
+  font-size: 1.05rem;
+  font-weight: 600;
+  text-align: center;
+  line-height: 1.3;
+}

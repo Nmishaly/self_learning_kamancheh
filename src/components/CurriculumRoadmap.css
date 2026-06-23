@@ -8,6 +8,19 @@
   gap: 24px;
 }
 
+.roadmap__home {
+  align-self: flex-start;
+  padding: 8px 14px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
 .roadmap__header {
   text-align: center;
 }
