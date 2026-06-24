@@ -21,7 +21,10 @@ Open the page, allow the microphone, and start playing.
   Eastern intervals like the *koron* quarter-tone that don't exist on a piano.
 - **📼 Teacher video library** — watch real lesson recordings with practice
   tools built in: slow the video down **without changing the pitch**, and loop a
-  passage until it feels comfortable.
+  passage until it feels comfortable. Each clip is also **transcribed on-device**
+  in the background to draw a fingering guide that follows the teacher.
+- **🎻 Sampled instrument voice** — synth playback uses pitch-shifted Kamancheh
+  note samples for a fuller sound, with a built-in synth fallback.
 - **🎙️ Turn your own recordings into lessons** — upload an audio file and the
   app transcribes it **in your browser** into a sequence of notes, then plays it
   back with an on-screen fingering guide showing *which string and finger* to
@@ -151,6 +154,10 @@ match your own filenames and titles.
 self_learning_kamancheh/
 ├── api/
 │   └── annotate-notes.js        # Vercel function: adds Hebrew cues to real notes
+├── scripts/
+│   └── generate-samples.mjs     # Synthesizes the instrument WAV samples
+├── public/
+│   └── samples/kamancheh/       # Note samples (synthesized by default)
 ├── src/
 │   ├── App.jsx                  # View switching + welcome + error boundary
 │   ├── components/
@@ -160,8 +167,9 @@ self_learning_kamancheh/
 │   │   ├── MelodyPlayer.jsx     # Self-paced melody practice
 │   │   ├── AudioTestbed.jsx     # Microphone tuner (pitch + waveform)
 │   │   ├── SongLibrary.jsx      # Videos + audio upload/transcription
-│   │   ├── SongInstructor.jsx   # Fingering overlay for notes/uploaded audio
-│   │   ├── VideoLesson.jsx      # Honest player for teacher videos
+│   │   ├── SongInstructor.jsx   # Player for synth scales / uploaded audio
+│   │   ├── VideoLesson.jsx      # Teacher-video player + transcribed guide
+│   │   ├── FingeringGuide.jsx   # Shared guide/timeline/fretboard overlay
 │   │   ├── Welcome.jsx          # First-run intro + mic primer
 │   │   ├── ConfirmDialog.jsx    # Styled confirm modal
 │   │   ├── ErrorBoundary.jsx    # Graceful crash recovery
@@ -169,7 +177,9 @@ self_learning_kamancheh/
 │   ├── audio/
 │   │   ├── pitch.js             # Autocorrelation pitch detection + helpers
 │   │   ├── analyzeAudio.js      # In-browser onset/tempo/pitch transcription
-│   │   └── kamanchehSampler.js  # Optional sample-based instrument (scaffold)
+│   │   ├── steps.js             # Transcript → fingerboard steps helpers
+│   │   ├── transcriptCache.js   # localStorage cache for video transcripts
+│   │   └── kamanchehSampler.js  # Sample-based instrument (synth fallback)
 │   ├── data/
 │   │   ├── curriculum.js        # The four learning stages
 │   │   └── maqams.js            # Maqam scales + microtonal note resolution
@@ -186,10 +196,26 @@ serverless function backed by the Claude API.
 
 ## 🎼 A note on transcription
 
-Uploaded audio is transcribed **locally in your browser** using onset detection
-and autocorrelation pitch tracking — no audio is uploaded to any server. It is a
-practical teaching aid, not a perfect transcription: clean, monophonic
-recordings of a single instrument give the best results.
+Both uploaded audio **and the teacher videos** are transcribed **locally in your
+browser** using onset detection and autocorrelation pitch tracking — no audio is
+uploaded to any server. Video transcripts are cached (by filename) so each clip
+is analysed only once. It is a practical teaching aid, not a perfect
+transcription: clean, monophonic recordings of a single instrument give the best
+results.
+
+## 🎻 Instrument samples
+
+The sampled voice is driven by short note samples in `public/samples/kamancheh/`.
+The defaults are **synthesized** (not recorded) by a script, so the sampler works
+out of the box:
+
+```bash
+npm run samples   # regenerate public/samples/kamancheh/*.wav
+```
+
+To use real recordings instead, drop files with the same names (`D4.wav`,
+`G4.wav`, `A4.wav`, `D5.wav`) into that folder — the loader tolerates missing or
+extra files, and the realtime synth covers anything the samples don't.
 
 ---
 
