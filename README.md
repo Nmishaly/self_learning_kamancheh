@@ -209,16 +209,24 @@ results.
 ## 🎻 Instrument samples
 
 The sampled voice is driven by short note samples in `public/samples/kamancheh/`.
-The defaults are **synthesized** (not recorded) by a script, so the sampler works
-out of the box:
+The defaults are **synthesized** (not recorded) by a script that models the
+bowed spike-fiddle — its small sound-box resonances (formants), the continuous
+bow-friction noise, and the wide vibrato — so it sounds reasonably like a
+Kamancheh out of the box rather than a plain synth:
 
 ```bash
 npm run samples   # regenerate public/samples/kamancheh/*.wav
 ```
 
+> A synthesized voice can only get so close. For the most authentic sound, drop
+> in **real Kamancheh recordings** (see below) — that is the single biggest
+> upgrade to how the app sounds.
+
 To use real recordings instead, drop files with the same names (`D4.wav`,
-`G4.wav`, `A4.wav`, `D5.wav`) into that folder — the loader tolerates missing or
-extra files, and the realtime synth covers anything the samples don't.
+`F4.wav`, `G4.wav`, `A4.wav`, `C5.wav`, `D5.wav` — one short, clean, sustained
+bowed note each) into that folder. The loader tolerates missing or extra files,
+and the realtime synth covers anything the samples don't. More base notes mean
+less pitch-shifting and a more natural result.
 
 ---
 
