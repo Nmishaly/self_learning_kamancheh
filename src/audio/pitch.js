@@ -7,8 +7,20 @@
 export const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
 export const SOLFEGE_NAMES = ['Do', 'Do#', 'Re', 'Re#', 'Mi', 'Fa', 'Fa#', 'Sol', 'Sol#', 'La', 'La#', 'Si']
 
-// The four open strings of the Azerbaijani Kamancheh, in scientific notation.
-export const OPEN_STRINGS = ['A3', 'D4', 'A4', 'D5']
+// The four open strings of the classical Azerbaijani Kamancheh, low → high, in
+// scientific notation: Re–Sol–Re–Sol (D3–G3–D4–G4). Kept in scientific form for
+// the frequency-matching logic; UI screens show the friendly names below.
+export const OPEN_STRINGS = ['D3', 'G3', 'D4', 'G4']
+
+// Friendly absolute note names (Hebrew Solfège) for each open string, so the UI
+// never surfaces Western scientific notation. The ׳ (geresh) marks the higher
+// octave of each repeated Re / Sol.
+export const OPEN_STRING_LABELS = {
+  D3: 'רה',
+  G3: 'סול',
+  D4: 'רה׳',
+  G4: 'סול׳',
+}
 
 // A pitch is "perfectly in tune" at 0 cents and fully out of tune at this many
 // cents away — used to drive the red → green tuning colour.

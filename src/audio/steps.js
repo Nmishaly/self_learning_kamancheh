@@ -56,17 +56,17 @@ export function phraseStartsEvery(steps, n = 4) {
 
 /**
  * Contextually choose the open-string fingering for notes that have one (chiefly
- * La / A4 on the Azerbaijani Kamancheh, whose open A string coincides with the
- * stopped 4th-finger La on the D string).
+ * Sol / G4 on the classical Azerbaijani Kamancheh, whose open G string coincides
+ * with the stopped 3rd-finger Sol on the D string).
  *
- * Rather than rigidly forcing every La to the pinky on D4, this picks the open
- * A4 string when it is the more idiomatic choice:
+ * Rather than rigidly forcing every Sol to the 3rd finger on D4, this picks the
+ * open G4 string when it is the more idiomatic choice:
  *   • the note opens a phrase (a tetrachord boundary) — the upper tetrachord
- *     A–B–C–D naturally sits on the A string starting from the open A; or
- *   • the note is approached descending from the A string (e.g. Si → La), where
+ *     Sol–La–Si–Do naturally sits on the G string starting from the open Sol; or
+ *   • the note is approached descending from the G string (e.g. La → Sol), where
  *     letting the open string ring is the traditional Mugham gesture.
  * Otherwise it keeps the stopped fingering, so an ascending run through the
- * lower tetrachord (Re–Mi–Fa–Sol–La) stays in one hand position.
+ * lower tetrachord (Re–Mi–Fa–Sol) stays in one hand position.
  *
  * Returns a new steps array; steps chosen as open carry `openString: true`.
  */

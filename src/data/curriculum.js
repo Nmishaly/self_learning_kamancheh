@@ -33,11 +33,12 @@ export const STAGES = [
     number: 1,
     title: 'יציבות במיתרים פתוחים',
     summary: 'העבירו את הקשת על כל מיתר פתוח והחזיקו צליל נקי ויציב.',
+    // The classical Azerbaijani open strings, low → high: Re–Sol–Re–Sol.
     targets: [
-      { id: 's1-a3', label: 'La / A', short: 'A3', frequency: 220.0 },
-      { id: 's1-d4', label: 'Re / D', short: 'D4', frequency: 293.66 },
-      { id: 's1-a4', label: 'La / A', short: 'A4', frequency: 440.0 },
-      { id: 's1-d5', label: 'Re / D', short: 'D5', frequency: 587.33 },
+      { id: 's1-d3', label: 'רה', short: 'רה', frequency: 146.83 },
+      { id: 's1-g3', label: 'סול', short: 'סול', frequency: 196.0 },
+      { id: 's1-d4', label: 'רה׳', short: 'רה׳', frequency: 293.66 },
+      { id: 's1-g4', label: 'סול׳', short: 'סול׳', frequency: 392.0 },
     ],
   },
   {
@@ -46,10 +47,10 @@ export const STAGES = [
     title: 'הטטרקורד הראשון מ־רה',
     summary: 'ארבעת הצלילים העולים הראשונים מ־רה: רה – מי – פה# – סול.',
     targets: [
-      { id: 's2-d4', label: 'Re / D', short: 'D4', frequency: 293.66 },
-      { id: 's2-e4', label: 'Mi / E', short: 'E4', frequency: 329.63 },
-      { id: 's2-fs4', label: 'Fa♯ / F♯', short: 'F♯4', frequency: 369.99 },
-      { id: 's2-g4', label: 'Sol / G', short: 'G4', frequency: 392.0 },
+      { id: 's2-d4', label: 'רה', short: 'רה', frequency: 293.66 },
+      { id: 's2-e4', label: 'מי', short: 'מי', frequency: 329.63 },
+      { id: 's2-fs4', label: 'פה דיאז', short: 'פה#', frequency: 369.99 },
+      { id: 's2-g4', label: 'סול', short: 'סול', frequency: 392.0 },
     ],
   },
   {
@@ -58,15 +59,15 @@ export const STAGES = [
     title: 'בסיס מוגאם שור',
     summary: 'הטטרקורד של שור עם המי במול־מיקרוטונלי (קורון).',
     targets: [
-      { id: 's3-d4', label: 'Re / D', short: 'D4', frequency: 293.66 },
+      { id: 's3-d4', label: 'רה', short: 'רה', frequency: 293.66 },
       {
         id: 's3-ehf4',
-        label: 'Mi-koron / E½♭',
-        short: 'E half-flat',
+        label: 'מי קורון',
+        short: 'מי קורון',
         frequency: E_HALF_FLAT_4,
       },
-      { id: 's3-f4', label: 'Fa / F', short: 'F4', frequency: 349.23 },
-      { id: 's3-g4', label: 'Sol / G', short: 'G4', frequency: 392.0 },
+      { id: 's3-f4', label: 'פה', short: 'פה', frequency: 349.23 },
+      { id: 's3-g4', label: 'סול', short: 'סול', frequency: 392.0 },
     ],
   },
   {
