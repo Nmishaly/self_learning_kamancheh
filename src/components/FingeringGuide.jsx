@@ -51,6 +51,11 @@ export default function FingeringGuide({ steps, currentIndex }) {
         <div className="song__guide-main">
           <span className="song__guide-note">{step.solfegeHe}</span>
           <span className="song__guide-where">{placement(step)}</span>
+          {step.finger === 'Open' && (
+            <span className="song__guide-open" title="מיתר פתוח">
+              ○ מיתר פתוח
+            </span>
+          )}
         </div>
         <div className="song__guide-meta">
           {step.instruction && (
@@ -89,10 +94,13 @@ export default function FingeringGuide({ steps, currentIndex }) {
               <div className="song__slots">
                 {FINGERS.map((f) => {
                   const active = onThisString && step.finger === f.id
+                  const openActive = active && f.id === 'Open'
                   return (
                     <span
                       key={f.id}
-                      className={`song__finger ${active ? 'song__finger--active' : ''}`}
+                      className={`song__finger ${active ? 'song__finger--active' : ''} ${
+                        openActive ? 'song__finger--open' : ''
+                      }`}
                     >
                       {active ? step.solfegeHe : f.label}
                     </span>

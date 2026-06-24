@@ -281,3 +281,87 @@
   color: var(--text-dim);
   text-align: right;
 }
+
+/* ── Past Practice Sessions (history) ─────────────────────────────────────── */
+.library__history-empty {
+  margin: 8px 0;
+  padding: 18px;
+  text-align: center;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: var(--text-dim);
+  background: var(--surface);
+  border: 1px dashed var(--border);
+  border-radius: 14px;
+}
+
+.library__history {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.library__history-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.library__history-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.library__history-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.library__history-sub {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+}
+
+.library__history-audio {
+  width: 100%;
+  height: 36px;
+}
+
+.library__history-missing {
+  margin: 0;
+  font-size: 0.82rem;
+  color: #f87171;
+}
+
+.library__history-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.library__history-btn {
+  flex: 1;
+  padding: 10px 14px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.library__history-btn--primary {
+  color: #07120f;
+  background: var(--accent);
+  border-color: var(--accent);
+}

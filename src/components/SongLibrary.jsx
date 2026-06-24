@@ -1,16 +1,54 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import SongInstructor from './SongInstructor.jsx'
 import VideoLesson from './VideoLesson.jsx'
 import { MAQAM_OPTIONS, DEFAULT_MAQAM } from '../data/maqams.js'
 import { decodeAndAnalyze } from '../audio/analyzeAudio.js'
+import {
+  saveRecording,
+  loadRecordingsMeta,
+  getRecordingUrl,
+  deleteRecording,
+  isCloudEnabled,
+} from '../audio/recordingsStore.js'
 import { showToast } from '../ui/toast.js'
 import './SongLibrary.css'
 
-// The two library tabs.
+// The library tabs.
 const TABS = [
   { id: 'technique', label: 'תרגילי טכניקה' },
   { id: 'repertoire', label: 'רפרטואר ושירים' },
+  { id: 'history', label: 'היסטוריית תרגול' },
 ]
+
+// Turn a persisted recording record into a song the SongInstructor can open.
+function songFromRecord(record) {
+  return {
+    id: record.id,
+    category: 'repertoire',
+    isLocal: false,
+    source: 'upload',
+    audioUrl: record.audioUrl,
+    title: record.title,
+    subtitle: `${record.notes.length} תווים · ${record.bpm} BPM`,
+    maqam: record.maqam || DEFAULT_MAQAM,
+    bpm: record.bpm,
+    notes: record.notes,
+  }
+}
+
+// A friendly Hebrew date for a saved session.
+function formatDate(ts) {
+  try {
+    return new Date(ts).toLocaleDateString('he-IL', {
+      day: 'numeric',
+      month: 'short',
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+  } catch {
+    return ''
+  }
+}
 
 // Reject files larger than this to avoid very long in-browser analysis.
 const MAX_FILE_BYTES = 25 * 1024 * 1024 // 25 MB
@@ -99,6 +137,24 @@ export default function SongLibrary({ onBackHome }) {
   const [songs, setSongs] = useState(SEED_SONGS)
   const [progress, setProgress] = useState(null) // null | 0..100 while analyzing
   const [selectedSong, setSelectedSong] = useState(null)
+  // Persisted practice sessions (survive refresh; no re-upload needed).
+  const [saved, setSaved] = useState([])
+
+  // Load saved recordings on mount and resolve a playable URL for each (cloud
+  // URL when present, otherwise the on-device IndexedDB blob).
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      const meta = loadRecordingsMeta()
+      const resolved = await Promise.all(
+        meta.map(async (r) => ({ ...r, audioUrl: await getRecordingUrl(r) })),
+      )
+      if (!cancelled) setSaved(resolved)
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   // Selecting a song launches the right player for it.
   if (selectedSong) {
@@ -139,28 +195,51 @@ export default function SongLibrary({ onBackHome }) {
 
       const maqam = DEFAULT_MAQAM
       const enriched = await enrichWithInstructions(notes, maqam)
-      const audioUrl = URL.createObjectURL(file)
+      const title = file.name.replace(/\.[^.]+$/, '')
 
-      const newSong = {
-        id: `file-${Date.now()}`,
-        category: 'repertoire',
-        isLocal: false,
-        source: 'upload',
-        audioUrl,
-        title: file.name.replace(/\.[^.]+$/, ''),
-        subtitle: `${enriched.length} תווים · ${bpm} BPM`,
+      // Persist the recording (on-device, plus cloud when enabled) so it
+      // survives a refresh and never needs re-uploading or re-analysing.
+      const record = await saveRecording(file, {
+        title,
         maqam,
         bpm,
         notes: enriched,
-      }
+      })
+      const audioUrl = await getRecordingUrl(record)
+      const savedRecord = { ...record, audioUrl }
+
+      setSaved((prev) => [savedRecord, ...prev.filter((r) => r.id !== record.id)])
+
+      const newSong = songFromRecord(savedRecord)
       setSongs((prev) => [...prev, newSong])
       setActiveTab('repertoire')
-      showToast('השיר נותח ונוסף לרפרטואר!', 'success')
+      showToast(
+        isCloudEnabled
+          ? 'השיר נותח, נשמר בענן ונוסף לרפרטואר!'
+          : 'השיר נותח ונשמר להיסטוריה — יישמר גם אחרי רענון.',
+        'success',
+      )
     } catch {
       showToast('לא ניתן לנתח את הקובץ — נסו קובץ שמע אחר.', 'error')
     } finally {
       setProgress(null)
     }
+  }
+
+  // Open a saved session for practice in the instructor (no re-upload).
+  function practiceSaved(record) {
+    if (!record.audioUrl) {
+      showToast('לא נמצאה הקלטה שמורה — ייתכן שנמחקה מהמכשיר.', 'error')
+      return
+    }
+    setSelectedSong(songFromRecord(record))
+  }
+
+  async function removeSaved(id) {
+    await deleteRecording(id)
+    setSaved((prev) => prev.filter((r) => r.id !== id))
+    setSongs((prev) => prev.filter((s) => s.id !== id))
+    showToast('ההקלטה נמחקה.', 'info')
   }
 
   function updateMaqam(id, maqam) {
@@ -226,44 +305,104 @@ export default function SongLibrary({ onBackHome }) {
         </div>
       )}
 
-      <ul className="library__list">
-        {items.map((item) => (
-          <li key={item.id} className="library__card">
+      {activeTab === 'history' ? (
+        <HistoryList saved={saved} onPractice={practiceSaved} onDelete={removeSaved} />
+      ) : (
+        <ul className="library__list">
+          {items.map((item) => (
+            <li key={item.id} className="library__card">
+              <button
+                type="button"
+                className="library__card-main"
+                onClick={() => setSelectedSong(item)}
+              >
+                <LocalThumb />
+                <div className="library__card-body" dir="rtl" lang="he">
+                  <span className="library__card-title">{item.title}</span>
+                  <span className="library__card-sub">{item.subtitle}</span>
+                </div>
+                <span className="library__card-status">
+                  {item.source === 'upload' ? 'הקלטה' : 'וידאו'}
+                </span>
+              </button>
+
+              {/* Maqam dropdown — only meaningful for transcribed uploads. */}
+              {item.source === 'upload' && (
+                <label className="library__maqam" dir="rtl" lang="he">
+                  <span className="library__maqam-label">מקאם</span>
+                  <select
+                    className="library__maqam-select"
+                    value={item.maqam}
+                    onChange={(e) => updateMaqam(item.id, e.target.value)}
+                  >
+                    {MAQAM_OPTIONS.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  )
+}
+
+/**
+ * "Past Practice Sessions" — the persisted recordings list. Each saved session
+ * can be listened back to inline, reopened for practice/analysis without
+ * re-uploading, or deleted.
+ */
+function HistoryList({ saved, onPractice, onDelete }) {
+  if (saved.length === 0) {
+    return (
+      <p className="library__history-empty" dir="rtl" lang="he">
+        עדיין אין הקלטות שמורות. העלו הקלטה בלשונית «רפרטואר ושירים» והיא תופיע
+        כאן — ותישמר גם אחרי רענון הדף.
+      </p>
+    )
+  }
+  return (
+    <ul className="library__history" dir="rtl" lang="he">
+      {saved.map((rec) => (
+        <li key={rec.id} className="library__history-card">
+          <div className="library__history-head">
+            <div className="library__history-body">
+              <span className="library__history-title">{rec.title}</span>
+              <span className="library__history-sub">
+                {rec.notes.length} תווים · {rec.bpm} BPM · {formatDate(rec.createdAt)}
+                {rec.cloudUrl ? ' · ☁️ ענן' : ' · 💾 במכשיר'}
+              </span>
+            </div>
+          </div>
+
+          {rec.audioUrl ? (
+            <audio className="library__history-audio" src={rec.audioUrl} controls preload="none" />
+          ) : (
+            <p className="library__history-missing">ההקלטה אינה זמינה במכשיר זה.</p>
+          )}
+
+          <div className="library__history-actions">
             <button
               type="button"
-              className="library__card-main"
-              onClick={() => setSelectedSong(item)}
+              className="library__history-btn library__history-btn--primary"
+              onClick={() => onPractice(rec)}
             >
-              <LocalThumb />
-              <div className="library__card-body" dir="rtl" lang="he">
-                <span className="library__card-title">{item.title}</span>
-                <span className="library__card-sub">{item.subtitle}</span>
-              </div>
-              <span className="library__card-status">
-                {item.source === 'upload' ? 'הקלטה' : 'וידאו'}
-              </span>
+              🎻 תרגול
             </button>
-
-            {/* Maqam dropdown — only meaningful for transcribed uploads. */}
-            {item.source === 'upload' && (
-              <label className="library__maqam" dir="rtl" lang="he">
-                <span className="library__maqam-label">מקאם</span>
-                <select
-                  className="library__maqam-select"
-                  value={item.maqam}
-                  onChange={(e) => updateMaqam(item.id, e.target.value)}
-                >
-                  {MAQAM_OPTIONS.map((m) => (
-                    <option key={m.id} value={m.id}>
-                      {m.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            )}
-          </li>
-        ))}
-      </ul>
-    </section>
+            <button
+              type="button"
+              className="library__history-btn"
+              onClick={() => onDelete(rec.id)}
+            >
+              מחיקה
+            </button>
+          </div>
+        </li>
+      ))}
+    </ul>
   )
 }

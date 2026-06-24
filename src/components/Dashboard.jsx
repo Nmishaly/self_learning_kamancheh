@@ -27,6 +27,21 @@ function NoteIcon() {
   )
 }
 
+function EarIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="40" height="40" aria-hidden="true">
+      <path
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M7 8a5 5 0 0 1 10 0c0 3-2.5 3.8-3.5 5.2-.7 1-.5 2.3-1.7 3a2.4 2.4 0 0 1-3.5-2.2M9 18.5a2.2 2.2 0 0 0 3.6 1.4"
+      />
+    </svg>
+  )
+}
+
 /**
  * Main entry dashboard. Presents the two top-level destinations as equal
  * square cards. `onNavigate` is called with the target view id.
@@ -64,6 +79,19 @@ export default function Dashboard({ onNavigate }) {
           </span>
           <span className="dashboard__card-label" dir="rtl" lang="he">
             ספריית שירים
+          </span>
+        </button>
+
+        <button
+          type="button"
+          className="dashboard__card"
+          onClick={() => onNavigate('callresponse')}
+        >
+          <span className="dashboard__card-icon">
+            <EarIcon />
+          </span>
+          <span className="dashboard__card-label" dir="rtl" lang="he">
+            הקשבה ותגובה
           </span>
         </button>
       </div>

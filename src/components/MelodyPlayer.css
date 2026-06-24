@@ -74,7 +74,11 @@
 .melody__note {
   flex: 0 0 auto;
   min-width: 44px;
-  padding: 10px 0;
+  padding: 10px 4px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
   text-align: center;
   font-size: 0.9rem;
   font-weight: 600;
@@ -98,6 +102,110 @@
   border-color: var(--accent);
   box-shadow: 0 0 0 1px var(--accent);
   transform: translateY(-2px);
+}
+
+/* Rhythmic grade tinting of completed notes (overrides the plain "done" green). */
+.melody__note--perfect {
+  background: #34d399;
+  border-color: #34d399;
+}
+
+.melody__note--early {
+  background: #fbbf24;
+  border-color: #fbbf24;
+}
+
+.melody__note--late {
+  background: #fb923c;
+  border-color: #fb923c;
+}
+
+.melody__note-grade {
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: #07120f;
+  opacity: 0.85;
+}
+
+/* Tempo + metronome toolbar */
+.melody__rhythm-tools {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.melody__tempos {
+  display: inline-flex;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 3px;
+}
+
+.melody__tempo {
+  border: none;
+  background: none;
+  color: var(--text-dim);
+  font-size: 0.82rem;
+  font-weight: 700;
+  padding: 7px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.melody__tempo--active {
+  color: #07120f;
+  background: var(--accent);
+}
+
+.melody__metronome {
+  flex: 1;
+  min-width: 120px;
+  padding: 10px 14px;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.melody__metronome--active {
+  color: #07120f;
+  background: #fbbf24;
+  border-color: #fbbf24;
+}
+
+/* Strip wrapper hosts the absolutely-positioned scrolling beat marker. */
+.melody__strip-wrap {
+  position: relative;
+}
+
+.melody__marker {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--accent);
+  box-shadow: 0 0 8px 1px var(--accent);
+  pointer-events: none;
+  z-index: 2;
+  transition: inset-inline-start 0.05s linear;
+}
+
+.melody__tally-perfect {
+  color: #34d399;
+}
+
+.melody__tally-early {
+  color: #fbbf24;
+}
+
+.melody__tally-late {
+  color: #fb923c;
 }
 
 .melody__cue {

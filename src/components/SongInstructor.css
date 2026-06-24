@@ -496,6 +496,26 @@
   font-weight: 600;
 }
 
+/* Open-string cue: La played on the ringing open A string instead of stopped. */
+.song__guide-open {
+  align-self: center;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #fcd34d;
+  background: rgba(252, 211, 77, 0.12);
+  border: 1px solid rgba(252, 211, 77, 0.35);
+  border-radius: 999px;
+  padding: 2px 12px;
+}
+
+/* An active open-string slot glows amber to set it apart from a stopped finger. */
+.song__finger--open.song__finger--active {
+  color: #1a1407;
+  background: #fcd34d;
+  border-color: #fcd34d;
+  box-shadow: 0 0 22px 3px rgba(252, 211, 77, 0.55);
+}
+
 /* Timeline: a single horizontally-scrolling lane, active note auto-centred */
 .song__timeline {
   flex-wrap: nowrap;
@@ -597,4 +617,34 @@
   color: #07120f;
   background: #fbbf24;
   border-color: #fbbf24;
+}
+
+/* Backing-track row: toggle + rhythm picker */
+.song__backing {
+  gap: 10px;
+}
+
+.song__backing-select-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 150px;
+}
+
+.song__backing-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-dim);
+}
+
+.song__backing-select {
+  flex: 1;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 10px 12px;
+  font-size: 0.9rem;
+  font-weight: 600;
 }

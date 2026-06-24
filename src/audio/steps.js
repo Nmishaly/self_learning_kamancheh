@@ -2,7 +2,7 @@
 // turning a transcript (notes) into playable "steps" and mapping playback time
 // to the active note.
 
-import { resolveHebrewNote } from '../data/maqams.js'
+import { resolveHebrewNote, OPEN_STRING_ALTS } from '../data/maqams.js'
 
 const NOTE_SECONDS = 0.9
 
@@ -52,4 +52,36 @@ export function indexAtTime(steps, elapsed) {
 /** Phrase boundaries for skip/loop: every `n`-th note (default 4). */
 export function phraseStartsEvery(steps, n = 4) {
   return steps.map((_, i) => i).filter((i) => i % n === 0)
+}
+
+/**
+ * Contextually choose the open-string fingering for notes that have one (chiefly
+ * La / A4 on the Azerbaijani Kamancheh, whose open A string coincides with the
+ * stopped 4th-finger La on the D string).
+ *
+ * Rather than rigidly forcing every La to the pinky on D4, this picks the open
+ * A4 string when it is the more idiomatic choice:
+ *   • the note opens a phrase (a tetrachord boundary) — the upper tetrachord
+ *     A–B–C–D naturally sits on the A string starting from the open A; or
+ *   • the note is approached descending from the A string (e.g. Si → La), where
+ *     letting the open string ring is the traditional Mugham gesture.
+ * Otherwise it keeps the stopped fingering, so an ascending run through the
+ * lower tetrachord (Re–Mi–Fa–Sol–La) stays in one hand position.
+ *
+ * Returns a new steps array; steps chosen as open carry `openString: true`.
+ */
+export function applyOpenStringPreference(steps, phraseStarts = []) {
+  const starts = new Set(phraseStarts)
+  return steps.map((step, i) => {
+    const alt = OPEN_STRING_ALTS[step.solfegeHe]
+    if (!alt) return step
+    const prev = steps[i - 1]
+    const descendingFromHigherString =
+      prev && prev.string === alt.string && prev.frequency > step.frequency
+    const opensPhrase = i === 0 || starts.has(i)
+    if (opensPhrase || descendingFromHigherString) {
+      return { ...step, ...alt, openString: true }
+    }
+    return step
+  })
 }
