@@ -342,6 +342,15 @@ export default function SongInstructor({ stage, song, onComplete, onExit }) {
     } else {
       const ctx = ensureCtx()
       if (ctx.state === 'suspended') await ctx.resume()
+      // Wait for the real Kamancheh samples before the clock starts, so even the
+      // first note plays the sampled instrument instead of the synth fallback.
+      if (samplerRef.current) {
+        try {
+          await samplerRef.current.load()
+        } catch {
+          // Couldn't load samples — playback continues on the synth fallback.
+        }
+      }
       startWallRef.current = ctx.currentTime
     }
 

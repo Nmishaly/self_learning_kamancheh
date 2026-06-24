@@ -33,28 +33,33 @@ export const SAMPLE_MANIFEST = [
 export function createKamanchehSampler(ctx) {
   const buffers = [] // { frequency, buffer }, sorted by frequency
   let ready = false
+  let loadPromise = null // ensures load() runs once even if awaited repeatedly
 
-  async function load() {
-    if (SAMPLE_MANIFEST.length === 0) return false
-    // Per-sample resilience: one missing/undecodable file must not disable the
-    // others. A file that 404s is rewritten to index.html, so decode fails and
-    // that sample is simply skipped.
-    await Promise.all(
-      SAMPLE_MANIFEST.map(async (sample) => {
-        try {
-          const res = await fetch(sample.url)
-          if (!res.ok) return
-          const arrayBuffer = await res.arrayBuffer()
-          const buffer = await ctx.decodeAudioData(arrayBuffer)
-          buffers.push({ frequency: sample.frequency, buffer })
-        } catch {
-          // Skip this sample; the synth covers its range.
-        }
-      }),
-    )
-    buffers.sort((a, b) => a.frequency - b.frequency)
-    ready = buffers.length > 0
-    return ready
+  function load() {
+    if (loadPromise) return loadPromise
+    if (SAMPLE_MANIFEST.length === 0) return Promise.resolve(false)
+    loadPromise = (async () => {
+      // Per-sample resilience: one missing/undecodable file must not disable the
+      // others. A file that 404s is rewritten to index.html, so decode fails and
+      // that sample is simply skipped.
+      await Promise.all(
+        SAMPLE_MANIFEST.map(async (sample) => {
+          try {
+            const res = await fetch(sample.url)
+            if (!res.ok) return
+            const arrayBuffer = await res.arrayBuffer()
+            const buffer = await ctx.decodeAudioData(arrayBuffer)
+            buffers.push({ frequency: sample.frequency, buffer })
+          } catch {
+            // Skip this sample; the synth covers its range.
+          }
+        }),
+      )
+      buffers.sort((a, b) => a.frequency - b.frequency)
+      ready = buffers.length > 0
+      return ready
+    })()
+    return loadPromise
   }
 
   function isReady() {
