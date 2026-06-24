@@ -113,8 +113,9 @@ export default function SongLibrary({ onBackHome }) {
   const isAnalyzing = progress !== null
 
   // Analyze a local audio file entirely in the browser: decode it, transcribe
-  // it to notes, optionally add Hebrew cues, and play back the ORIGINAL audio
-  // with the synced fingering overlay.
+  // it to notes, optionally add Hebrew cues, and add it to the repertoire. The
+  // player then re-plays the song on the Kamancheh synth from those notes (with
+  // a synced fingering overlay), with an option to hear the original recording.
   async function handleFile(event) {
     const file = event.target.files && event.target.files[0]
     event.target.value = '' // allow re-selecting the same file later
@@ -219,7 +220,8 @@ export default function SongLibrary({ onBackHome }) {
             </div>
           )}
           <p className="library__upload-hint">
-            העלו קובץ שמע (עד 25MB) והאפליקציה תזהה את התווים ותלמד אתכם לנגן אותם.
+            העלו קובץ שמע (עד 25MB) והאפליקציה תזהה את התווים, תתרגם אותם לנגינת
+            קמנצ׳ה ותלמד אתכם לנגן את השיר (אפשר גם לשמוע את ההקלטה המקורית).
           </p>
         </div>
       )}

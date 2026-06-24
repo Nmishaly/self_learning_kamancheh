@@ -58,10 +58,12 @@ export default function SongInstructor({ stage, song, onComplete, onExit }) {
   const maqamId = (song && song.maqam) || DEFAULT_MAQAM
   const maqam = MAQAMS[maqamId] || MAQAMS[DEFAULT_MAQAM]
 
-  // Real audio file (uploaded + transcribed) drives the clock when present.
+  // An uploaded recording can be played two ways:
+  //   - 'kamancheh' (default): re-play the song on the Kamancheh synth from its
+  //     transcribed notes — i.e. translate the recording into Kamancheh playing.
+  //   - 'original': play the student's actual recording, for comparison.
   const audioUrl = song && song.source === 'upload' ? song.audioUrl : null
-  const hasAudio = Boolean(audioUrl)
-  const isSynth = !hasAudio
+  const isUpload = Boolean(audioUrl)
 
   // Note source priority: transcribed song notes → stage melody → maqam scale.
   const aiNotes =
@@ -102,6 +104,14 @@ export default function SongInstructor({ stage, song, onComplete, onExit }) {
   const [currentIndex, setCurrentIndex] = useState(0)
   const [speed, setSpeed] = useState(1)
   const [loop, setLoop] = useState(false)
+  // 'kamancheh' = synth rendition of the notes · 'original' = the recording.
+  const [playbackMode, setPlaybackMode] = useState('kamancheh')
+
+  // The original recording drives the clock only when explicitly selected; in
+  // every other case (the default for uploads, and all synth scales/melodies)
+  // playback is the Kamancheh synth reading the transcribed notes.
+  const hasAudio = isUpload && playbackMode === 'original'
+  const isSynth = !hasAudio
 
   const audioCtxRef = useRef(null)
   const samplerRef = useRef(null)
@@ -374,6 +384,24 @@ export default function SongInstructor({ stage, song, onComplete, onExit }) {
     setSpeed(value)
   }
 
+  // Switch how an uploaded song is played (Kamancheh synth vs. the original
+  // recording). Stop first and re-anchor both clocks to the current phrase so
+  // the audio element and the synth clock never run at the same time.
+  function changeMode(mode) {
+    if (mode === playbackMode) return
+    if (isPlaying) pause()
+    const pos = steps[currentIndex] ? steps[currentIndex].start : 0
+    seekRef.current = pos
+    lastTriggeredRef.current = -1
+    if (audioElRef.current) {
+      audioElRef.current.pause()
+      audioElRef.current.currentTime = pos
+    }
+    const ctx = audioCtxRef.current
+    if (ctx) startWallRef.current = ctx.currentTime
+    setPlaybackMode(mode)
+  }
+
   function toggleLoop() {
     const next = !loop
     setLoop(next)
@@ -422,13 +450,17 @@ export default function SongInstructor({ stage, song, onComplete, onExit }) {
         </span>
       </header>
 
-      {/* Media: the student's real recording, or a synth indicator. */}
+      {/* Media: an uploaded recording (rendered on Kamancheh or as the
+          original), or a synth indicator for scales/melodies. */}
       <div className="song__media">
-        {hasAudio ? (
+        {isUpload ? (
           <div className="song__synth">
             <span className="song__synth-badge" dir="rtl" lang="he">
-              🎵 ההקלטה שלכם · {maqam.nameHe}
+              {hasAudio
+                ? `🎵 ההקלטה המקורית · ${maqam.nameHe}`
+                : `🎻 בנגינת קמנצ׳ה · ${maqam.nameHe}`}
             </span>
+            {/* Kept mounted in both modes so switching to the original is instant. */}
             <audio
               ref={audioElRef}
               src={audioUrl}
@@ -446,6 +478,28 @@ export default function SongInstructor({ stage, song, onComplete, onExit }) {
       </div>
 
       <FingeringGuide steps={steps} currentIndex={currentIndex} />
+
+      {/* For uploads: choose between the Kamancheh rendition and the original. */}
+      {isUpload && (
+        <div className="song__practice" dir="rtl" lang="he">
+          <div className="song__speeds" role="group" aria-label="אופן נגינה">
+            <button
+              type="button"
+              className={`song__speed ${playbackMode === 'kamancheh' ? 'song__speed--active' : ''}`}
+              onClick={() => changeMode('kamancheh')}
+            >
+              🎻 קמנצ׳ה
+            </button>
+            <button
+              type="button"
+              className={`song__speed ${playbackMode === 'original' ? 'song__speed--active' : ''}`}
+              onClick={() => changeMode('original')}
+            >
+              🎵 מקור
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Practice tools: slow down (no pitch change) + loop a phrase */}
       <div className="song__practice" dir="rtl" lang="he">
