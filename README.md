@@ -209,13 +209,14 @@ results.
 ## 🎻 Instrument samples
 
 The sampled voice is driven by short note samples in `public/samples/kamancheh/`.
-The shipped samples are **single notes extracted from real Kamancheh recordings**
-and retuned to the pitches the sampler needs (`D4, F4, G4, A4, C5, D5`), so the
-instrument sounds like an actual bowed spike-fiddle out of the box.
+The shipped samples are **single notes extracted from real Kamancheh lesson
+recordings**, so the instrument sounds like an actual bowed spike-fiddle. Each
+one is pitch-verified to within a few cents of its note; the sampler pitch-shifts
+the nearest sample for any note in between.
 
-To rebuild them from your own source recordings — phrases/loops are fine, the
-script finds the steady single notes inside them — drop the audio into
-`kamancheh-source/` and run:
+To rebuild them from your own recordings — full lessons/phrases are fine, the
+script finds the steady single notes inside them — drop the audio (`.mp3` or
+`.wav`) into `kamancheh-source/` and run:
 
 ```bash
 npm run samples:real            # extract real notes → public/samples/kamancheh/
@@ -223,9 +224,16 @@ npm run samples:real            # extract real notes → public/samples/kamanche
 node scripts/build-samples-from-recordings.mjs /path/to/recordings
 ```
 
-> Tip: more (and cleaner) source notes = better results. A chromatic single-note
-> Kamancheh pack gives the most natural sound, since each note needs little or no
-> retuning.
+The script decodes each file, finds clean sustained notes with an octave-robust
+pitch detector (preferring a strong, clear fundamental), retunes them to the
+target pitches, and prints the `SAMPLE_MANIFEST` to paste into
+`src/audio/kamanchehSampler.js`.
+
+> Tips for the best result:
+> - If the teacher talks over the playing, run the files through a
+>   vocal-separation tool first (e.g. lalal.ai) and feed the **instrument stems**.
+> - More (and cleaner) source notes = better. A chromatic single-note Kamancheh
+>   pack needs almost no retuning at all.
 
 If you have **no recordings at all**, a synthesized fallback voice is available
 (it models the body resonances, bow noise, and vibrato, but still isn't the real
