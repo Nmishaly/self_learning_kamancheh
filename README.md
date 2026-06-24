@@ -25,10 +25,12 @@ Open the page, allow the microphone, and start playing.
   in the background to draw a fingering guide that follows the teacher.
 - **🎻 Sampled instrument voice** — synth playback uses pitch-shifted Kamancheh
   note samples for a fuller sound, with a built-in synth fallback.
-- **🎙️ Turn your own recordings into lessons** — upload an audio file and the
-  app transcribes it **in your browser** into a sequence of notes, then plays it
-  back with an on-screen fingering guide showing *which string and finger* to
-  use for every note.
+- **🎙️ Turn any song into a Kamancheh lesson** — upload an audio file and the
+  app transcribes it **in your browser** into a sequence of notes, then **re-plays
+  the song on the Kamancheh** (a synthesized rendition built from those notes)
+  with an on-screen fingering guide showing *which string and finger* to use for
+  every note. One tap switches between the Kamancheh rendition (🎻) and the
+  original recording (🎵) to compare.
 - **🎶 Interactive fingerboard** — a moving cursor highlights the exact note,
   string, and finger in time with the music.
 - **🪕 Maqam-aware** — supports the *Ajam*, *Shur*, and *Rast* modes, including
@@ -75,9 +77,10 @@ You'll see two big buttons:
   to slow it down (the pitch stays correct) and **🔁** to loop it.
 - To turn one of **your own recordings** into a guided lesson, open the
   **רפרטואר** tab, tap **🎙️ העלאת הקלטה לתרגול** (Upload a recording), and pick an
-  audio file (up to 25 MB). The app analyses it and adds it to your repertoire
-  with a full fingering guide. Tap it to play along — slow it down or loop a
-  phrase just like the videos.
+  audio file (up to 25 MB). The app analyses it, **renders the song on the
+  Kamancheh**, and adds it to your repertoire with a full fingering guide. Tap it
+  to play along — use **🎻 קמנצ׳ה / 🎵 מקור** to switch between the Kamancheh
+  rendition and the original, and slow it down or loop a phrase like the videos.
 
 ---
 
