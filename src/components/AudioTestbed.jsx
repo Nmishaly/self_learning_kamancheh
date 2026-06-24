@@ -4,6 +4,7 @@ import {
   centsToColor,
   frequencyToNote,
   OPEN_STRINGS,
+  OPEN_STRING_LABELS,
 } from '../audio/pitch.js'
 import './AudioTestbed.css'
 
@@ -326,7 +327,7 @@ export default function AudioTestbed({
                     : ''
                 }`}
               >
-                {s}
+                {OPEN_STRING_LABELS[s] || s}
               </span>
             ))}
           </div>

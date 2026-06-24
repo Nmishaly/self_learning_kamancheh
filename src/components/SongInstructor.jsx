@@ -101,8 +101,8 @@ export default function SongInstructor({ stage, song, onComplete, onExit }) {
     phraseStarts = maqam.phraseStarts
   }
 
-  // Let La (A4) ring on the open A string where the phrase calls for it instead
-  // of always forcing the 4th finger on the D string.
+  // Let Sol (G4) ring on the open G string where the phrase calls for it instead
+  // of always forcing the 3rd finger on the D string.
   steps = applyOpenStringPreference(steps, phraseStarts)
 
   const total = totalDuration(steps)

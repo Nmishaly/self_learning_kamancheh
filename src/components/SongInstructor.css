@@ -496,7 +496,7 @@
   font-weight: 600;
 }
 
-/* Open-string cue: La played on the ringing open A string instead of stopped. */
+/* Open-string cue: Sol played on the ringing open G string instead of stopped. */
 .song__guide-open {
   align-self: center;
   font-size: 0.82rem;

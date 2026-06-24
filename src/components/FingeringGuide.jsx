@@ -1,11 +1,12 @@
 import { useEffect, useRef } from 'react'
 
-// The four open strings, drawn high → low, each with five finger slots.
+// The four open strings of the classical Azerbaijani tuning (Re–Sol–Re–Sol),
+// drawn high → low, each with five finger slots.
 export const STRINGS = [
-  { id: 'D5', solfege: 'Re' },
-  { id: 'A4', solfege: 'La' },
+  { id: 'G4', solfege: 'Sol' },
   { id: 'D4', solfege: 'Re' },
-  { id: 'A3', solfege: 'La' },
+  { id: 'G3', solfege: 'Sol' },
+  { id: 'D3', solfege: 'Re' },
 ]
 export const FINGERS = [
   { id: 'Open', label: 'O' },
@@ -15,8 +16,9 @@ export const FINGERS = [
   { id: 'Pinky', label: 'ז' },
 ]
 
-// Hebrew labels for the on-screen "where to play" guidance.
-export const STRING_HE = { D5: 'מיתר רה׳', A4: 'מיתר לה', D4: 'מיתר רה', A3: 'מיתר לה׳' }
+// Hebrew labels for the on-screen "where to play" guidance. The ׳ (geresh)
+// marks the higher octave of each repeated Re / Sol string.
+export const STRING_HE = { G4: 'מיתר סול׳', D4: 'מיתר רה׳', G3: 'מיתר סול', D3: 'מיתר רה' }
 export const FINGER_HE = { Open: 'פתוח', 1: 'אצבע 1', 2: 'אצבע 2', 3: 'אצבע 3', Pinky: 'זרת' }
 
 const placement = (s) =>
