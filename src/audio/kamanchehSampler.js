@@ -1,23 +1,16 @@
-// Sample-based Kamancheh instrument (SCAFFOLDING — not yet wired into playback).
+// Sample-based Kamancheh instrument. Plays back short note samples,
+// pitch-shifted to the target frequency, for a fuller and CPU-free voice; the
+// realtime synth in SongInstructor remains the automatic fallback.
 //
-// This is the path to a truly realistic, "identical to a real instrument" sound:
-// play back short recordings of actual Kamancheh notes, pitch-shifted to the
-// target frequency, instead of synthesizing the timbre.
-//
-// To activate (next session):
-//   1. Drop recorded note samples into  public/samples/kamancheh/  (e.g. D4.mp3,
-//      G4.mp3, A4.mp3, D5.mp3 — a handful spread across the range is enough).
-//   2. List them in SAMPLE_MANIFEST below.
-//   3. In SongInstructor: create one sampler with createKamanchehSampler(ctx),
-//      call `await sampler.load()` once, and in playTone do
-//      `if (!sampler.play(frequency, ctx.currentTime, dur)) { ...existing synth... }`
-//      so it falls back to the synth whenever a sample isn't available.
+// The default samples are SYNTHESIZED by scripts/generate-samples.mjs and live
+// in public/samples/kamancheh/. To use real recordings instead, drop files with
+// the same names (or update this manifest) — load() tolerates missing files.
 
 export const SAMPLE_MANIFEST = [
-  // { frequency: 293.66, url: '/samples/kamancheh/D4.mp3' }, // Re
-  // { frequency: 392.0,  url: '/samples/kamancheh/G4.mp3' }, // Sol
-  // { frequency: 440.0,  url: '/samples/kamancheh/A4.mp3' }, // La
-  // { frequency: 587.33, url: '/samples/kamancheh/D5.mp3' }, // Re (octave)
+  { frequency: 293.66, url: '/samples/kamancheh/D4.wav' }, // Re
+  { frequency: 392.0, url: '/samples/kamancheh/G4.wav' }, // Sol
+  { frequency: 440.0, url: '/samples/kamancheh/A4.wav' }, // La
+  { frequency: 587.33, url: '/samples/kamancheh/D5.wav' }, // Re (octave)
 ]
 
 /**
@@ -35,12 +28,20 @@ export function createKamanchehSampler(ctx) {
 
   async function load() {
     if (SAMPLE_MANIFEST.length === 0) return false
+    // Per-sample resilience: one missing/undecodable file must not disable the
+    // others. A file that 404s is rewritten to index.html, so decode fails and
+    // that sample is simply skipped.
     await Promise.all(
       SAMPLE_MANIFEST.map(async (sample) => {
-        const res = await fetch(sample.url)
-        const arrayBuffer = await res.arrayBuffer()
-        const buffer = await ctx.decodeAudioData(arrayBuffer)
-        buffers.push({ frequency: sample.frequency, buffer })
+        try {
+          const res = await fetch(sample.url)
+          if (!res.ok) return
+          const arrayBuffer = await res.arrayBuffer()
+          const buffer = await ctx.decodeAudioData(arrayBuffer)
+          buffers.push({ frequency: sample.frequency, buffer })
+        } catch {
+          // Skip this sample; the synth covers its range.
+        }
       }),
     )
     buffers.sort((a, b) => a.frequency - b.frequency)
@@ -79,7 +80,11 @@ export function createKamanchehSampler(ctx) {
     const src = ctx.createBufferSource()
     src.buffer = nearest.buffer
     // Exact ratio reproduces microtonal pitches precisely (no quantization).
-    src.playbackRate.value = frequency / nearest.frequency
+    const playbackRate = frequency / nearest.frequency
+    src.playbackRate.value = playbackRate
+    // Loop the sample if the note must sustain longer than the (pitch-shifted)
+    // sample lasts, so long notes don't fall to silence.
+    if (duration > nearest.buffer.duration / playbackRate) src.loop = true
 
     const gain = ctx.createGain()
     const release = Math.min(0.1, duration * 0.3)

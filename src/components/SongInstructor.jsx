@@ -1,6 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
-import { MAQAMS, DEFAULT_MAQAM, resolveHebrewNote } from '../data/maqams.js'
+import { MAQAMS, DEFAULT_MAQAM } from '../data/maqams.js'
 import { createKamanchehSampler } from '../audio/kamanchehSampler.js'
+import {
+  stepsFromTranscript,
+  withDurations,
+  totalDuration,
+  indexAtTime,
+  phraseStartsEvery,
+} from '../audio/steps.js'
+import FingeringGuide from './FingeringGuide.jsx'
 import './SongInstructor.css'
 
 // Playback tempo for synth scales/melodies: each note lasts this many seconds.
@@ -9,25 +17,6 @@ const SYNTH_GAIN = 0.22
 
 // Practice slow-down options (no pitch change).
 const SPEEDS = [0.5, 0.75, 1]
-
-// The four open strings, drawn high → low, each with five finger slots.
-const STRINGS = [
-  { id: 'D5', solfege: 'Re' },
-  { id: 'A4', solfege: 'La' },
-  { id: 'D4', solfege: 'Re' },
-  { id: 'A3', solfege: 'La' },
-]
-const FINGERS = [
-  { id: 'Open', label: 'O' },
-  { id: '1', label: '1' },
-  { id: '2', label: '2' },
-  { id: '3', label: '3' },
-  { id: 'Pinky', label: 'ז' },
-]
-
-// Hebrew labels for the on-screen "where to play" guidance.
-const STRING_HE = { D5: 'מיתר רה׳', A4: 'מיתר לה', D4: 'מיתר רה', A3: 'מיתר לה׳' }
-const FINGER_HE = { Open: 'פתוח', 1: 'אצבע 1', 2: 'אצבע 2', 3: 'אצבע 3', Pinky: 'זרת' }
 
 // Curriculum melodies are written as scientific note names; map each to the
 // fingerboard placement so a stage melody can drive the instructor overlay.
@@ -78,18 +67,13 @@ export default function SongInstructor({ stage, song, onComplete, onExit }) {
   const aiNotes =
     song && Array.isArray(song.notes) && song.notes.length > 0 ? song.notes : null
 
-  let baseSteps
+  let steps
+  let phraseStarts
   if (aiNotes) {
-    baseSteps = aiNotes
-      .map((n, i) => ({
-        solfegeHe: n.note,
-        instruction: n.instruction,
-        start: typeof n.time === 'number' ? n.time : i * NOTE_SECONDS,
-        ...resolveHebrewNote(n.note),
-      }))
-      .sort((a, b) => a.start - b.start)
+    steps = stepsFromTranscript(aiNotes)
+    phraseStarts = phraseStartsEvery(steps)
   } else if (stage && Array.isArray(stage.melody) && stage.melody.length > 0) {
-    baseSteps = stage.melody.map((m, i) => {
+    const base = stage.melody.map((m, i) => {
       const placement = MELODY_NOTE[m.short] || MELODY_NOTE.D4
       return {
         solfegeHe: placement.solfegeHe,
@@ -101,26 +85,15 @@ export default function SongInstructor({ stage, song, onComplete, onExit }) {
         start: i * NOTE_SECONDS,
       }
     })
+    steps = withDurations(base)
+    phraseStarts = phraseStartsEvery(steps)
   } else {
-    baseSteps = maqam.notes.map((n, i) => ({ ...n, start: i * NOTE_SECONDS }))
+    const base = maqam.notes.map((n, i) => ({ ...n, start: i * NOTE_SECONDS }))
+    steps = withDurations(base)
+    phraseStarts = maqam.phraseStarts
   }
 
-  // Each note sustains until the next note's timestamp (last note gets a tail).
-  const steps = baseSteps.map((s, i) => {
-    const next = baseSteps[i + 1]
-    const duration = next ? Math.max(0.12, next.start - s.start) : NOTE_SECONDS
-    return { ...s, duration }
-  })
-
-  const total = steps.length
-    ? steps[steps.length - 1].start + steps[steps.length - 1].duration
-    : 0
-
-  // Skip points: the maqam's tetrachords, or every four notes for a transcript.
-  const phraseStarts =
-    aiNotes || (stage && stage.melody)
-      ? steps.map((_, i) => i).filter((i) => i % 4 === 0)
-      : maqam.phraseStarts
+  const total = totalDuration(steps)
 
   const headerLabel = song ? song.title : `שלב ${stage.number} · ${maqam.nameHe}`
   const backLabel = song ? '→ ספרייה' : '→ מסלול'
@@ -141,9 +114,6 @@ export default function SongInstructor({ stage, song, onComplete, onExit }) {
   const loopRef = useRef(false)
   const loopStartRef = useRef(0)
   const loopEndRef = useRef(0)
-  const timelineRef = useRef(null)
-
-  const step = steps[currentIndex] || steps[0]
 
   // Tear down audio + animation on unmount.
   useEffect(() => {
@@ -156,14 +126,6 @@ export default function SongInstructor({ stage, song, onComplete, onExit }) {
   useEffect(() => {
     speedRef.current = speed
   }, [speed])
-
-  // Keep the active note centred in the horizontally-scrolling timeline.
-  useEffect(() => {
-    const el = timelineRef.current
-    if (!el) return
-    const active = el.querySelector('.song__slot--active')
-    if (active) active.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' })
-  }, [currentIndex])
 
   function ensureCtx() {
     if (!audioCtxRef.current) {
@@ -338,11 +300,7 @@ export default function SongInstructor({ stage, song, onComplete, onExit }) {
       return
     }
 
-    let idx = 0
-    for (let i = 0; i < steps.length; i++) {
-      if (steps[i].start <= elapsed) idx = i
-      else break
-    }
+    const idx = indexAtTime(steps, elapsed)
     if (idx !== lastTriggeredRef.current) {
       lastTriggeredRef.current = idx
       setCurrentIndex(idx)
@@ -452,8 +410,6 @@ export default function SongInstructor({ stage, song, onComplete, onExit }) {
   }
 
   const progress = steps.length ? ((currentIndex + 1) / steps.length) * 100 : 0
-  const nextStep = steps[currentIndex + 1]
-  const placement = (s) => `${STRING_HE[s.string] || s.string} · ${FINGER_HE[s.finger] || ''}`
 
   return (
     <section className="song">
@@ -489,63 +445,7 @@ export default function SongInstructor({ stage, song, onComplete, onExit }) {
         )}
       </div>
 
-      {/* Pedagogical guide: what to play, where, and what's next */}
-      <div className="song__guide" dir="rtl" lang="he">
-        <div className="song__guide-main">
-          <span className="song__guide-note">{step.solfegeHe}</span>
-          <span className="song__guide-where">{placement(step)}</span>
-        </div>
-        <div className="song__guide-meta">
-          {step.instruction && (
-            <span className="song__guide-technique">{step.instruction}</span>
-          )}
-          <span className="song__guide-next">
-            הבא: {nextStep ? nextStep.solfegeHe : '—'}
-          </span>
-        </div>
-      </div>
-
-      {/* Timeline with the moving, auto-centred cursor */}
-      <div className="song__timeline" dir="rtl" ref={timelineRef}>
-        {steps.map((n, i) => (
-          <span
-            key={`${n.english}-${i}`}
-            className={`song__slot ${i < currentIndex ? 'song__slot--done' : ''} ${
-              i === currentIndex ? 'song__slot--active' : ''
-            }`}
-          >
-            {n.solfegeHe}
-          </span>
-        ))}
-      </div>
-
-      {/* String + finger map, synced to the elapsed time. */}
-      <div className="song__fretboard">
-        {STRINGS.map((s) => {
-          const onThisString = step.string === s.id
-          return (
-            <div
-              key={s.id}
-              className={`song__string ${onThisString ? 'song__string--active' : ''}`}
-            >
-              <span className="song__string-name">{STRING_HE[s.id] || s.id}</span>
-              <div className="song__slots">
-                {FINGERS.map((f) => {
-                  const active = onThisString && step.finger === f.id
-                  return (
-                    <span
-                      key={f.id}
-                      className={`song__finger ${active ? 'song__finger--active' : ''}`}
-                    >
-                      {active ? step.solfegeHe : f.label}
-                    </span>
-                  )
-                })}
-              </div>
-            </div>
-          )
-        })}
-      </div>
+      <FingeringGuide steps={steps} currentIndex={currentIndex} />
 
       {/* Practice tools: slow down (no pitch change) + loop a phrase */}
       <div className="song__practice" dir="rtl" lang="he">
