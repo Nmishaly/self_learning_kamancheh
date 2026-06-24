@@ -2,15 +2,21 @@
 // pitch-shifted to the target frequency, for a fuller and CPU-free voice; the
 // realtime synth in SongInstructor remains the automatic fallback.
 //
-// The default samples are SYNTHESIZED by scripts/generate-samples.mjs and live
-// in public/samples/kamancheh/. To use real recordings instead, drop files with
-// the same names (or update this manifest) — load() tolerates missing files.
+// These samples are single notes extracted from REAL Kamancheh recordings of
+// the teacher (voice removed, then pitch-verified) by
+// scripts/build-samples-from-recordings.mjs. The set spans the teaching range;
+// the sampler pitch-shifts the nearest one for notes in between. load()
+// tolerates missing files, so you can drop in more or swap the synthesized
+// fallback (scripts/generate-samples.mjs) at any time.
 
 export const SAMPLE_MANIFEST = [
   { frequency: 293.66, url: '/samples/kamancheh/D4.wav' }, // Re
-  { frequency: 349.23, url: '/samples/kamancheh/F4.wav' }, // Fa
+  { frequency: 329.63, url: '/samples/kamancheh/E4.wav' }, // Mi
+  { frequency: 369.99, url: '/samples/kamancheh/Fs4.wav' }, // Fa#
   { frequency: 392.0, url: '/samples/kamancheh/G4.wav' }, // Sol
+  { frequency: 415.3, url: '/samples/kamancheh/Gs4.wav' }, // Sol#
   { frequency: 440.0, url: '/samples/kamancheh/A4.wav' }, // La
+  { frequency: 466.16, url: '/samples/kamancheh/As4.wav' }, // Si♭
   { frequency: 523.25, url: '/samples/kamancheh/C5.wav' }, // Do
   { frequency: 587.33, url: '/samples/kamancheh/D5.wav' }, // Re (octave)
 ]
