@@ -13,6 +13,10 @@ dist
 dist-ssr
 *.local
 
+# Source recordings for the real-Kamancheh sampler (may be third-party material);
+# only the extracted single-note samples in public/samples/kamancheh/ are tracked.
+kamancheh-source/
+
 # Logs
 logs
 *.log

@@ -209,24 +209,38 @@ results.
 ## 🎻 Instrument samples
 
 The sampled voice is driven by short note samples in `public/samples/kamancheh/`.
-The defaults are **synthesized** (not recorded) by a script that models the
-bowed spike-fiddle — its small sound-box resonances (formants), the continuous
-bow-friction noise, and the wide vibrato — so it sounds reasonably like a
-Kamancheh out of the box rather than a plain synth:
+The shipped samples are **single notes extracted from real Kamancheh recordings**
+and retuned to the pitches the sampler needs (`D4, F4, G4, A4, C5, D5`), so the
+instrument sounds like an actual bowed spike-fiddle out of the box.
+
+To rebuild them from your own source recordings — phrases/loops are fine, the
+script finds the steady single notes inside them — drop the audio into
+`kamancheh-source/` and run:
 
 ```bash
-npm run samples   # regenerate public/samples/kamancheh/*.wav
+npm run samples:real            # extract real notes → public/samples/kamancheh/
+# or point at any folder:
+node scripts/build-samples-from-recordings.mjs /path/to/recordings
 ```
 
-> A synthesized voice can only get so close. For the most authentic sound, drop
-> in **real Kamancheh recordings** (see below) — that is the single biggest
-> upgrade to how the app sounds.
+> Tip: more (and cleaner) source notes = better results. A chromatic single-note
+> Kamancheh pack gives the most natural sound, since each note needs little or no
+> retuning.
 
-To use real recordings instead, drop files with the same names (`D4.wav`,
-`F4.wav`, `G4.wav`, `A4.wav`, `C5.wav`, `D5.wav` — one short, clean, sustained
-bowed note each) into that folder. The loader tolerates missing or extra files,
-and the realtime synth covers anything the samples don't. More base notes mean
-less pitch-shifting and a more natural result.
+If you have **no recordings at all**, a synthesized fallback voice is available
+(it models the body resonances, bow noise, and vibrato, but still isn't the real
+thing). It **overwrites** the real samples, so only use it when you must:
+
+```bash
+npm run samples                 # synthesize public/samples/kamancheh/*.wav
+```
+
+The loader tolerates missing or extra files, and the realtime synth covers any
+note the samples don't.
+
+> Source recordings themselves are **not committed** (they may be third-party
+> material); only the short single-note results the app plays are. Mind the
+> license of any sample pack you build from before publishing the output.
 
 ---
 

@@ -1,10 +1,11 @@
-// Generates bowed-string Kamancheh note samples (mono 16-bit WAV) so the
-// sample-based instrument is active out of the box. These are SYNTHESIZED, not
-// recorded — they give the sampler a fuller, CPU-free voice than the realtime
-// synth and are trivially replaceable: drop real recordings with the same
-// filenames into public/samples/kamancheh/ to override them.
+// Generates bowed-string Kamancheh note samples (mono 16-bit WAV) as a
+// SYNTHESIZED FALLBACK voice for the sampler. The shipped samples are built
+// from REAL recordings instead (scripts/build-samples-from-recordings.mjs) and
+// sound far more authentic — so prefer `npm run samples:real`. Use this script
+// only when you have no source recordings; note it OVERWRITES the real samples
+// in public/samples/kamancheh/ with the synthesized versions.
 //
-// Run with:  node scripts/generate-samples.mjs
+// Run with:  node scripts/generate-samples.mjs   (or: npm run samples)
 
 import { writeFileSync, mkdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
