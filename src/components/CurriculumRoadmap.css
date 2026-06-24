@@ -59,7 +59,7 @@
    down to the next node. */
 .roadmap__connector {
   position: absolute;
-  left: 27px;
+  inset-inline-start: 27px;
   top: 44px;
   bottom: -6px;
   width: 2px;
@@ -82,7 +82,7 @@
   align-items: flex-start;
   gap: 14px;
   padding: 12px;
-  text-align: left;
+  text-align: start;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 16px;

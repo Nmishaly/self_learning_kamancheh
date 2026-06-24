@@ -1,0 +1,42 @@
+.errboundary {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 40px 28px calc(40px + env(safe-area-inset-bottom));
+  text-align: center;
+}
+
+.errboundary__icon {
+  font-size: 3rem;
+}
+
+.errboundary__title {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.errboundary__text {
+  margin: 0;
+  max-width: 320px;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+
+.errboundary__button {
+  margin-top: 6px;
+  padding: 13px 28px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #07120f;
+  background: var(--accent);
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}

@@ -34,20 +34,20 @@ export default function StagePractice({ stage, onComplete, onExit }) {
   }
 
   return (
-    <section className="practice">
+    <section className="practice" dir="rtl" lang="he">
       <header className="practice__header">
         <button type="button" className="practice__back" onClick={onExit}>
-          ← Roadmap
+          → חזרה למסלול
         </button>
         <div className="practice__heading">
-          <span className="practice__stage-num">Stage {stage.number}</span>
+          <span className="practice__stage-num">שלב {stage.number}</span>
           <h1 className="practice__title">{stage.title}</h1>
           <p className="practice__summary">{stage.summary}</p>
         </div>
       </header>
 
       <div className="practice__progress">
-        {passedIds.length} / {stage.targets.length} notes in tune
+        {passedIds.length} / {stage.targets.length} צלילים מכוונים
       </div>
 
       <div className="practice__targets">
@@ -74,16 +74,16 @@ export default function StagePractice({ stage, onComplete, onExit }) {
       {allPassed ? (
         <div className="practice__done">
           <div className="practice__done-icon">✓</div>
-          <h2 className="practice__done-title">Stage complete!</h2>
+          <h2 className="practice__done-title">השלב הושלם!</h2>
           <p className="practice__done-text">
-            You held every note in tune. The next stage is now unlocked.
+            ניגנתם כל צליל בכוונון נקי. השלב הבא נפתח עכשיו.
           </p>
           <button
             type="button"
             className="practice__done-button"
             onClick={() => onComplete(stage.id)}
           >
-            Back to Roadmap
+            חזרה למסלול
           </button>
         </div>
       ) : (

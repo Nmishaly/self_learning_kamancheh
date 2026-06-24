@@ -82,12 +82,23 @@ function hann(size) {
   return w
 }
 
-/** Spectral-flux onset envelope: positive frame-to-frame magnitude increases. */
-function spectralFlux(mono) {
+// Lets the UI paint a progress bar between chunks of heavy synchronous work.
+const yieldToUi = () => new Promise((resolve) => setTimeout(resolve, 0))
+
+/**
+ * Spectral-flux onset envelope: positive frame-to-frame magnitude increases.
+ * Runs in chunks and yields to the event loop so a long file never freezes the
+ * tab; `onProgress(fraction)` is called as it advances (0 → ~0.9 here).
+ */
+async function spectralFlux(mono, onProgress) {
   const window = hann(FRAME_SIZE)
   const bins = FRAME_SIZE / 2
   let prev = new Float32Array(bins)
   const flux = []
+  const lastPos = mono.length - FRAME_SIZE
+  // Yield roughly every ~120ms of audio worth of frames.
+  const chunkFrames = 256
+  let sinceYield = 0
   for (let pos = 0; pos + FRAME_SIZE <= mono.length; pos += HOP) {
     const re = new Float32Array(FRAME_SIZE)
     const im = new Float32Array(FRAME_SIZE)
@@ -102,8 +113,34 @@ function spectralFlux(mono) {
     }
     prev = mag
     flux.push(sum)
+    if (++sinceYield >= chunkFrames) {
+      sinceYield = 0
+      if (onProgress && lastPos > 0) onProgress((pos / lastPos) * 0.9)
+      await yieldToUi()
+    }
   }
   return flux
+}
+
+/**
+ * Estimate the pitch at an onset robustly: sample several short frames just
+ * AFTER the attack (where the tone has settled) and take the median frequency.
+ * The onset frame itself is the noisiest moment, so measuring there causes
+ * octave errors and misreads — this avoids that.
+ */
+function pitchAtOnset(mono, time, sampleRate) {
+  const offsets = [0.04, 0.08, 0.12, 0.16] // seconds after the attack
+  const freqs = []
+  for (const off of offsets) {
+    const start = Math.floor((time + off) * sampleRate)
+    if (start + FRAME_SIZE > mono.length) break
+    const slice = mono.subarray(start, start + FRAME_SIZE)
+    const f = autoCorrelate(slice, sampleRate)
+    if (f > 0) freqs.push(f)
+  }
+  if (freqs.length === 0) return -1
+  freqs.sort((a, b) => a - b)
+  return freqs[Math.floor(freqs.length / 2)]
 }
 
 /** Estimate tempo (BPM) by autocorrelating the onset envelope. */
@@ -151,24 +188,22 @@ function pickOnsets(flux, frameRate) {
 }
 
 /**
- * Analyze a decoded AudioBuffer into a tempo and a note list.
- * Returns { bpm, notes: [{ time, note, instruction }] }.
+ * Analyze a decoded AudioBuffer into a tempo and a note list, without freezing
+ * the UI. `onProgress(fraction)` reports 0 → 1. Returns
+ * { bpm, notes: [{ time, note, instruction }] }.
  */
-export function analyzeAudio(audioBuffer) {
+export async function analyzeAudio(audioBuffer, onProgress) {
   const sampleRate = audioBuffer.sampleRate
   const mono = toMono(audioBuffer)
   const frameRate = sampleRate / HOP
 
-  const flux = spectralFlux(mono)
+  const flux = await spectralFlux(mono, onProgress)
   const bpm = estimateBpm(flux, frameRate)
   const onsetTimes = pickOnsets(flux, frameRate)
 
   const notes = []
   for (const time of onsetTimes) {
-    const start = Math.floor(time * sampleRate)
-    const slice = mono.slice(start, start + FRAME_SIZE)
-    if (slice.length < FRAME_SIZE) break
-    const frequency = autoCorrelate(slice, sampleRate)
+    const frequency = pitchAtOnset(mono, time, sampleRate)
     if (frequency <= 0) continue
     const english = frequencyToNote(frequency).english
     notes.push({
@@ -177,17 +212,18 @@ export function analyzeAudio(audioBuffer) {
       instruction: '',
     })
   }
+  if (onProgress) onProgress(1)
 
   return { bpm, notes }
 }
 
 /** Decode an ArrayBuffer (e.g. from a File) and analyze it. */
-export async function decodeAndAnalyze(arrayBuffer) {
+export async function decodeAndAnalyze(arrayBuffer, onProgress) {
   const Ctx = window.AudioContext || window.webkitAudioContext
   const ctx = new Ctx()
   try {
     const audioBuffer = await ctx.decodeAudioData(arrayBuffer)
-    return analyzeAudio(audioBuffer)
+    return await analyzeAudio(audioBuffer, onProgress)
   } finally {
     ctx.close()
   }

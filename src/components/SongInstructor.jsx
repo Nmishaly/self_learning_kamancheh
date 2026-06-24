@@ -3,22 +3,12 @@ import { MAQAMS, DEFAULT_MAQAM, resolveHebrewNote } from '../data/maqams.js'
 import { createKamanchehSampler } from '../audio/kamanchehSampler.js'
 import './SongInstructor.css'
 
-// Playback tempo: each scale note lasts this many seconds.
+// Playback tempo for synth scales/melodies: each note lasts this many seconds.
 const NOTE_SECONDS = 0.9
 const SYNTH_GAIN = 0.22
 
-// A short white-noise buffer (cached on the AudioContext) used for the bow
-// "scratch" transient at the start of each note.
-function getNoiseBuffer(ctx) {
-  if (!ctx._kamNoise) {
-    const length = Math.floor(ctx.sampleRate * 0.3)
-    const buffer = ctx.createBuffer(1, length, ctx.sampleRate)
-    const data = buffer.getChannelData(0)
-    for (let i = 0; i < length; i++) data[i] = Math.random() * 2 - 1
-    ctx._kamNoise = buffer
-  }
-  return ctx._kamNoise
-}
+// Practice slow-down options (no pitch change).
+const SPEEDS = [0.5, 0.75, 1]
 
 // The four open strings, drawn high → low, each with five finger slots.
 const STRINGS = [
@@ -35,19 +25,43 @@ const FINGERS = [
   { id: 'Pinky', label: 'ז' },
 ]
 
-// Practice slow-down options (no pitch change).
-const SPEEDS = [0.5, 0.75, 1]
-
 // Hebrew labels for the on-screen "where to play" guidance.
 const STRING_HE = { D5: 'מיתר רה׳', A4: 'מיתר לה', D4: 'מיתר רה', A3: 'מיתר לה׳' }
 const FINGER_HE = { Open: 'פתוח', 1: 'אצבע 1', 2: 'אצבע 2', 3: 'אצבע 3', Pinky: 'זרת' }
 
+// Curriculum melodies are written as scientific note names; map each to the
+// fingerboard placement so a stage melody can drive the instructor overlay.
+const MELODY_NOTE = {
+  D4: { solfegeHe: 'רה', string: 'D4', finger: 'Open' },
+  E4: { solfegeHe: 'מי', string: 'D4', finger: '1' },
+  F4: { solfegeHe: 'פה', string: 'D4', finger: '2' },
+  G4: { solfegeHe: 'סול', string: 'D4', finger: '3' },
+  A4: { solfegeHe: 'לה', string: 'D4', finger: 'Pinky' },
+}
+
+// A short white-noise buffer (cached on the AudioContext) used for the bow
+// "scratch" transient at the start of each synth note.
+function getNoiseBuffer(ctx) {
+  if (!ctx._kamNoise) {
+    const length = Math.floor(ctx.sampleRate * 0.3)
+    const buffer = ctx.createBuffer(1, length, ctx.sampleRate)
+    const data = buffer.getChannelData(0)
+    for (let i = 0; i < length; i++) data[i] = Math.random() * 2 - 1
+    ctx._kamNoise = buffer
+  }
+  return ctx._kamNoise
+}
+
 /**
- * Song player / instructor. Auto-plays a maqam scale and synchronises a moving
- * highlight on the fingerboard with the audio elapsed time.
- *  - Local teacher videos play their original audio (<video>).
- *  - YouTube songs (and curriculum stages) play a clean synth of the scale.
- * Transport: ⏪ / ⏯ / ⏩, where skip jumps by musical phrase.
+ * Note-based instructor. Highlights which string + finger + note to play on a
+ * virtual fingerboard, synced to playback. Two playback sources:
+ *   - Uploaded audio (song.source === 'upload'): plays the student's ORIGINAL
+ *     recording and overlays the notes transcribed from it.
+ *   - Synth (curriculum stages, or songs without media): plays a clean bowed
+ *     synth of the maqam scale or the stage melody.
+ *
+ * Local teacher videos are handled by <VideoLesson> instead (no fabricated
+ * fingering overlay), so this component never deals with <video>.
  *
  * Props: stage?, song?, onComplete(stageId)?, onExit().
  */
@@ -55,24 +69,43 @@ export default function SongInstructor({ stage, song, onComplete, onExit }) {
   const maqamId = (song && song.maqam) || DEFAULT_MAQAM
   const maqam = MAQAMS[maqamId] || MAQAMS[DEFAULT_MAQAM]
 
-  // Prefer AI-translated phrases (with real timestamps) when the song has them;
-  // otherwise fall back to the maqam's evenly-spaced scale.
+  // Real audio file (uploaded + transcribed) drives the clock when present.
+  const audioUrl = song && song.source === 'upload' ? song.audioUrl : null
+  const hasAudio = Boolean(audioUrl)
+  const isSynth = !hasAudio
+
+  // Note source priority: transcribed song notes → stage melody → maqam scale.
   const aiNotes =
     song && Array.isArray(song.notes) && song.notes.length > 0 ? song.notes : null
 
-  const baseSteps = aiNotes
-    ? aiNotes
-        .map((n, i) => ({
-          solfegeHe: n.note,
-          instruction: n.instruction,
-          start: typeof n.time === 'number' ? n.time : i * NOTE_SECONDS,
-          ...resolveHebrewNote(n.note),
-        }))
-        .sort((a, b) => a.start - b.start)
-    : maqam.notes.map((n, i) => ({ ...n, start: i * NOTE_SECONDS }))
+  let baseSteps
+  if (aiNotes) {
+    baseSteps = aiNotes
+      .map((n, i) => ({
+        solfegeHe: n.note,
+        instruction: n.instruction,
+        start: typeof n.time === 'number' ? n.time : i * NOTE_SECONDS,
+        ...resolveHebrewNote(n.note),
+      }))
+      .sort((a, b) => a.start - b.start)
+  } else if (stage && Array.isArray(stage.melody) && stage.melody.length > 0) {
+    baseSteps = stage.melody.map((m, i) => {
+      const placement = MELODY_NOTE[m.short] || MELODY_NOTE.D4
+      return {
+        solfegeHe: placement.solfegeHe,
+        english: m.short,
+        frequency: m.frequency,
+        string: placement.string,
+        finger: placement.finger,
+        instruction: '',
+        start: i * NOTE_SECONDS,
+      }
+    })
+  } else {
+    baseSteps = maqam.notes.map((n, i) => ({ ...n, start: i * NOTE_SECONDS }))
+  }
 
-  // Each note sustains until the next note's timestamp, so synth playback is
-  // continuous and matches the AI-generated rhythm (last note gets a tail).
+  // Each note sustains until the next note's timestamp (last note gets a tail).
   const steps = baseSteps.map((s, i) => {
     const next = baseSteps[i + 1]
     const duration = next ? Math.max(0.12, next.start - s.start) : NOTE_SECONDS
@@ -83,20 +116,17 @@ export default function SongInstructor({ stage, song, onComplete, onExit }) {
     ? steps[steps.length - 1].start + steps[steps.length - 1].duration
     : 0
 
-  // Skip points: the maqam's tetrachords, or every four notes for an AI melody.
-  const phraseStarts = aiNotes
-    ? steps.map((_, i) => i).filter((i) => i % 4 === 0)
-    : maqam.phraseStarts
+  // Skip points: the maqam's tetrachords, or every four notes for a transcript.
+  const phraseStarts =
+    aiNotes || (stage && stage.melody)
+      ? steps.map((_, i) => i).filter((i) => i % 4 === 0)
+      : maqam.phraseStarts
 
-  const isLocalVideo = Boolean(song && song.isLocal)
-  const isYouTube = Boolean(song && !song.isLocal)
-
-  const headerLabel = song ? song.title : `Stage ${stage.number} · ${maqam.nameHe}`
-  const backLabel = song ? '← ספרייה' : '← Roadmap'
+  const headerLabel = song ? song.title : `שלב ${stage.number} · ${maqam.nameHe}`
+  const backLabel = song ? '→ ספרייה' : '→ מסלול'
 
   const [isPlaying, setIsPlaying] = useState(false)
   const [currentIndex, setCurrentIndex] = useState(0)
-  const [videoError, setVideoError] = useState(false)
   const [speed, setSpeed] = useState(1)
   const [loop, setLoop] = useState(false)
 
@@ -106,7 +136,7 @@ export default function SongInstructor({ stage, song, onComplete, onExit }) {
   const startWallRef = useRef(0) // real-time anchor: ctx.currentTime at the seek point
   const seekRef = useRef(0) // song-time position (seconds) at the anchor
   const lastTriggeredRef = useRef(-1)
-  const videoRef = useRef(null)
+  const audioElRef = useRef(null) // <audio> for uploaded recordings
   const speedRef = useRef(1)
   const loopRef = useRef(false)
   const loopStartRef = useRef(0)
@@ -139,36 +169,29 @@ export default function SongInstructor({ stage, song, onComplete, onExit }) {
     if (!audioCtxRef.current) {
       const Ctx = window.AudioContext || window.webkitAudioContext
       audioCtxRef.current = new Ctx()
-      // Real-sample Kamancheh; loads its manifest in the background and falls
-      // back to the synth until sample files are present.
       samplerRef.current = createKamanchehSampler(audioCtxRef.current)
       samplerRef.current.load().catch(() => {})
     }
     return audioCtxRef.current
   }
 
-  // A bowed-string (Kamancheh) voice built from: two slightly-detuned sawtooth
-  // oscillators (the bowed string's rich, edgy core) + a triangle (warm body),
-  // an eased-in vibrato LFO on pitch, a bow-bite low-pass filter envelope, a
-  // parallel band-pass "body resonance", a brief filtered-noise bow scratch at
-  // the onset, and an attack/decay/sustain/release amplitude envelope.
+  // A bowed-string (Kamancheh) synth voice (only used when there's no real
+  // audio recording to play).
   function playTone(frequency, duration = NOTE_SECONDS) {
     const ctx = ensureCtx()
     const now = ctx.currentTime
     const dur = Math.min(Math.max(duration, 0.12), 3.0)
 
-    // Prefer real recorded samples when available; otherwise synthesize below.
     if (samplerRef.current && samplerRef.current.play(frequency, now, dur)) {
       return
     }
 
     const peak = SYNTH_GAIN
     const sustain = SYNTH_GAIN * 0.75
-    const attack = Math.min(0.08, dur * 0.3) // slow bow onset (not a pluck)
+    const attack = Math.min(0.08, dur * 0.3)
     const decay = Math.min(0.12, dur * 0.3)
     const release = Math.min(0.12, dur * 0.3)
 
-    // Oscillators.
     const osc1 = ctx.createOscillator()
     osc1.type = 'sawtooth'
     osc1.frequency.value = frequency
@@ -192,19 +215,17 @@ export default function SongInstructor({ stage, song, onComplete, onExit }) {
     osc2.connect(g2).connect(oscMix)
     osc3.connect(g3).connect(oscMix)
 
-    // Vibrato (eased in after the attack, like a player settling the bow).
     const lfo = ctx.createOscillator()
     lfo.type = 'sine'
     lfo.frequency.value = 5.5
     const lfoDepth = ctx.createGain()
     lfoDepth.gain.setValueAtTime(0, now)
-    lfoDepth.gain.linearRampToValueAtTime(13, now + Math.min(0.25, dur * 0.5)) // ±13 cents
+    lfoDepth.gain.linearRampToValueAtTime(13, now + Math.min(0.25, dur * 0.5))
     lfo.connect(lfoDepth)
     lfoDepth.connect(osc1.detune)
     lfoDepth.connect(osc2.detune)
     lfoDepth.connect(osc3.detune)
 
-    // Bow-bite low-pass: opens quickly on attack, then settles.
     const lowpass = ctx.createBiquadFilter()
     lowpass.type = 'lowpass'
     lowpass.Q.value = 0.8
@@ -215,7 +236,6 @@ export default function SongInstructor({ stage, song, onComplete, onExit }) {
       now + attack + decay,
     )
 
-    // Parallel body resonance (the instrument's bowl/membrane).
     const body = ctx.createBiquadFilter()
     body.type = 'bandpass'
     body.frequency.value = 420
@@ -223,7 +243,6 @@ export default function SongInstructor({ stage, song, onComplete, onExit }) {
     const bodyGain = ctx.createGain()
     bodyGain.gain.value = 0.18
 
-    // Amplitude ADSR.
     const amp = ctx.createGain()
     amp.gain.setValueAtTime(0.0001, now)
     amp.gain.linearRampToValueAtTime(peak, now + attack)
@@ -236,7 +255,6 @@ export default function SongInstructor({ stage, song, onComplete, onExit }) {
     oscMix.connect(body).connect(bodyGain).connect(amp)
     amp.connect(ctx.destination)
 
-    // Bow-scratch transient at the onset.
     const noise = ctx.createBufferSource()
     noise.buffer = getNoiseBuffer(ctx)
     const noiseBp = ctx.createBiquadFilter()
@@ -269,10 +287,11 @@ export default function SongInstructor({ stage, song, onComplete, onExit }) {
     }
   }
 
-  // Song-time elapsed (seconds). Synth is clocked off the AudioContext and
-  // scaled by the practice speed so slowing down never changes pitch.
+  // Song-time elapsed (seconds). Real audio uses the element's clock; the synth
+  // is clocked off the AudioContext and scaled by the practice speed so slowing
+  // down never changes pitch.
   function currentElapsed() {
-    if (isLocalVideo && videoRef.current) return videoRef.current.currentTime
+    if (hasAudio && audioElRef.current) return audioElRef.current.currentTime
     const ctx = audioCtxRef.current
     if (!ctx) return seekRef.current
     return seekRef.current + (ctx.currentTime - startWallRef.current) * speedRef.current
@@ -282,15 +301,14 @@ export default function SongInstructor({ stage, song, onComplete, onExit }) {
   function reanchor(time) {
     seekRef.current = time
     lastTriggeredRef.current = -1
-    if (isLocalVideo && videoRef.current) {
-      videoRef.current.currentTime = time
+    if (hasAudio && audioElRef.current) {
+      audioElRef.current.currentTime = time
     } else {
       const ctx = audioCtxRef.current
       if (ctx) startWallRef.current = ctx.currentTime
     }
   }
 
-  // The [start, end) song-time span of the phrase containing a note index.
   function phraseRange(idx) {
     const before = phraseStarts.filter((p) => p <= idx)
     const startIdx = before.length ? before[before.length - 1] : 0
@@ -309,7 +327,6 @@ export default function SongInstructor({ stage, song, onComplete, onExit }) {
   function frame() {
     const elapsed = currentElapsed()
 
-    // Loop the selected phrase: jump back to its start at the end.
     if (loopRef.current && elapsed >= loopEndRef.current) {
       reanchor(loopStartRef.current)
       rafRef.current = requestAnimationFrame(frame)
@@ -321,7 +338,6 @@ export default function SongInstructor({ stage, song, onComplete, onExit }) {
       return
     }
 
-    // Current note = the last step whose start time has been reached.
     let idx = 0
     for (let i = 0; i < steps.length; i++) {
       if (steps[i].start <= elapsed) idx = i
@@ -330,8 +346,8 @@ export default function SongInstructor({ stage, song, onComplete, onExit }) {
     if (idx !== lastTriggeredRef.current) {
       lastTriggeredRef.current = idx
       setCurrentIndex(idx)
-      // Sustain across the (possibly slowed) real-time gap to the next note.
-      if (!isLocalVideo) playTone(steps[idx].frequency, steps[idx].duration / speedRef.current)
+      // Only the synth needs note triggers; real audio plays itself.
+      if (isSynth) playTone(steps[idx].frequency, steps[idx].duration / speedRef.current)
     }
     rafRef.current = requestAnimationFrame(frame)
   }
@@ -340,25 +356,25 @@ export default function SongInstructor({ stage, song, onComplete, onExit }) {
     if (seekRef.current >= total && !loopRef.current) {
       seekRef.current = 0
       setCurrentIndex(0)
-      if (isLocalVideo && videoRef.current) videoRef.current.currentTime = 0
+      if (hasAudio && audioElRef.current) audioElRef.current.currentTime = 0
     }
     lastTriggeredRef.current = -1
 
-    if (isLocalVideo) {
-      const video = videoRef.current
-      if (video) {
-        video.playbackRate = speedRef.current
-        video.preservesPitch = true
+    if (hasAudio) {
+      const el = audioElRef.current
+      if (el) {
+        el.playbackRate = speedRef.current
+        el.preservesPitch = true
         try {
-          await video.play()
+          await el.play()
         } catch {
-          setVideoError(true)
+          // Autoplay/user-gesture issues — leave paused; the button stays available.
         }
       }
     } else {
       const ctx = ensureCtx()
       if (ctx.state === 'suspended') await ctx.resume()
-      startWallRef.current = ctx.currentTime // elapsed = seekRef + (now-anchor)*speed
+      startWallRef.current = ctx.currentTime
     }
 
     setIsPlaying(true)
@@ -367,15 +383,15 @@ export default function SongInstructor({ stage, song, onComplete, onExit }) {
   }
 
   function pause() {
-    if (!isLocalVideo) seekRef.current = currentElapsed()
+    if (isSynth) seekRef.current = currentElapsed()
     stopLoop()
-    if (isLocalVideo && videoRef.current) videoRef.current.pause()
+    if (hasAudio && audioElRef.current) audioElRef.current.pause()
     setIsPlaying(false)
   }
 
   function finishPlayback() {
     stopLoop()
-    if (isLocalVideo && videoRef.current) videoRef.current.pause()
+    if (hasAudio && audioElRef.current) audioElRef.current.pause()
     seekRef.current = total
     setIsPlaying(false)
     setCurrentIndex(steps.length - 1)
@@ -386,17 +402,15 @@ export default function SongInstructor({ stage, song, onComplete, onExit }) {
     else play()
   }
 
-  // Change practice speed without changing pitch.
   function changeSpeed(value) {
-    if (isPlaying && !isLocalVideo) {
-      // Re-anchor so the new rate applies from the current position.
+    if (isPlaying && isSynth) {
       seekRef.current = currentElapsed()
       const ctx = audioCtxRef.current
       if (ctx) startWallRef.current = ctx.currentTime
     }
-    if (isLocalVideo && videoRef.current) {
-      videoRef.current.playbackRate = value
-      videoRef.current.preservesPitch = true
+    if (hasAudio && audioElRef.current) {
+      audioElRef.current.playbackRate = value
+      audioElRef.current.preservesPitch = true
     }
     speedRef.current = value
     setSpeed(value)
@@ -420,8 +434,6 @@ export default function SongInstructor({ stage, song, onComplete, onExit }) {
     setCurrentIndex(clamped)
   }
 
-  // Skip by musical phrase (tetrachord / four-note group). While looping, this
-  // also moves which phrase repeats.
   function skipNext() {
     const next = phraseStarts.find((p) => p > currentIndex) ?? steps.length - 1
     seekToIndex(next)
@@ -454,33 +466,22 @@ export default function SongInstructor({ stage, song, onComplete, onExit }) {
         </span>
       </header>
 
-      {/* Media: local video, or a synth indicator (YouTube thumbnail / stage) */}
+      {/* Media: the student's real recording, or a synth indicator. */}
       <div className="song__media">
-        {isLocalVideo ? (
-          videoError ? (
-            <div className="song__media-fallback" dir="rtl" lang="he">
-              וידאו מקומי לא נמצא — חברו את קובץ הווידאו
-            </div>
-          ) : (
-            <video
-              ref={videoRef}
-              className="song__video"
-              src={`/videos/${song.file}`}
-              playsInline
+        {hasAudio ? (
+          <div className="song__synth">
+            <span className="song__synth-badge" dir="rtl" lang="he">
+              🎵 ההקלטה שלכם · {maqam.nameHe}
+            </span>
+            <audio
+              ref={audioElRef}
+              src={audioUrl}
               onEnded={finishPlayback}
-              onError={() => setVideoError(true)}
+              preload="auto"
             />
-          )
+          </div>
         ) : (
           <div className="song__synth">
-            {isYouTube && (
-              <img
-                className="song__synth-thumb"
-                src={`https://img.youtube.com/vi/${song.youtubeId}/mqdefault.jpg`}
-                alt=""
-                aria-hidden="true"
-              />
-            )}
             <span className="song__synth-badge" dir="rtl" lang="he">
               ♪ מנוגן בסינתיסייזר · {maqam.nameHe}
             </span>
@@ -518,8 +519,7 @@ export default function SongInstructor({ stage, song, onComplete, onExit }) {
         ))}
       </div>
 
-      {/* String + finger map, synced to the elapsed time. The active finger
-          shows the Hebrew Solfège note so the eye lands on where to play. */}
+      {/* String + finger map, synced to the elapsed time. */}
       <div className="song__fretboard">
         {STRINGS.map((s) => {
           const onThisString = step.string === s.id
@@ -581,7 +581,7 @@ export default function SongInstructor({ stage, song, onComplete, onExit }) {
           type="button"
           className="song__ctrl"
           onClick={skipPrev}
-          aria-label="Previous phrase"
+          aria-label="המשפט הקודם"
         >
           ⏪
         </button>
@@ -589,7 +589,7 @@ export default function SongInstructor({ stage, song, onComplete, onExit }) {
           type="button"
           className="song__ctrl song__ctrl--play"
           onClick={togglePlay}
-          aria-label={isPlaying ? 'Pause' : 'Play'}
+          aria-label={isPlaying ? 'השהיה' : 'נגינה'}
         >
           {isPlaying ? '⏸' : '▶'}
         </button>
@@ -597,7 +597,7 @@ export default function SongInstructor({ stage, song, onComplete, onExit }) {
           type="button"
           className="song__ctrl"
           onClick={skipNext}
-          aria-label="Next phrase"
+          aria-label="המשפט הבא"
         >
           ⏩
         </button>
