@@ -88,7 +88,8 @@ const yieldToUi = () => new Promise((resolve) => setTimeout(resolve, 0))
 /**
  * Spectral-flux onset envelope: positive frame-to-frame magnitude increases.
  * Runs in chunks and yields to the event loop so a long file never freezes the
- * tab; `onProgress(fraction)` is called as it advances (0 → ~0.9 here).
+ * tab; `onProgress(fraction)` is called as it advances (0 → ~0.7 here — the
+ * remaining 0.7 → 1.0 is reserved for the heavier per-onset pitch phase).
  */
 async function spectralFlux(mono, onProgress) {
   const window = hann(FRAME_SIZE)
@@ -115,7 +116,7 @@ async function spectralFlux(mono, onProgress) {
     flux.push(sum)
     if (++sinceYield >= chunkFrames) {
       sinceYield = 0
-      if (onProgress && lastPos > 0) onProgress((pos / lastPos) * 0.9)
+      if (onProgress && lastPos > 0) onProgress((pos / lastPos) * 0.7)
       await yieldToUi()
     }
   }
@@ -197,20 +198,33 @@ export async function analyzeAudio(audioBuffer, onProgress) {
   const mono = toMono(audioBuffer)
   const frameRate = sampleRate / HOP
 
-  const flux = await spectralFlux(mono, onProgress)
+  const flux = await spectralFlux(mono, onProgress) // 0 → ~0.7
   const bpm = estimateBpm(flux, frameRate)
   const onsetTimes = pickOnsets(flux, frameRate)
 
+  // Per-onset pitch detection is the heaviest phase: autoCorrelate is O(n²) and
+  // pitchAtOnset runs it up to 4× per onset, so a busy multi-minute recording is
+  // billions of operations. Yield to the event loop periodically so the tab stays
+  // responsive and the progress bar keeps advancing (0.7 → 1.0) instead of
+  // freezing on the last value spectral-flux emitted (~0.7). Previously this loop
+  // ran as one synchronous block, which left long uploads stuck near 89%.
   const notes = []
-  for (const time of onsetTimes) {
+  const total = onsetTimes.length
+  for (let i = 0; i < total; i++) {
+    const time = onsetTimes[i]
     const frequency = pitchAtOnset(mono, time, sampleRate)
-    if (frequency <= 0) continue
-    const english = frequencyToNote(frequency).english
-    notes.push({
-      time: Math.round(time * 1000) / 1000,
-      note: EN_TO_HE[english] || 'רה',
-      instruction: '',
-    })
+    if (frequency > 0) {
+      const english = frequencyToNote(frequency).english
+      notes.push({
+        time: Math.round(time * 1000) / 1000,
+        note: EN_TO_HE[english] || 'רה',
+        instruction: '',
+      })
+    }
+    if ((i & 31) === 31) {
+      if (onProgress) onProgress(0.7 + (i / total) * 0.3)
+      await yieldToUi()
+    }
   }
   if (onProgress) onProgress(1)
 
