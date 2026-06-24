@@ -3,6 +3,7 @@ import { STAGES } from '../data/curriculum.js'
 import StagePractice from './StagePractice.jsx'
 import MelodyPlayer from './MelodyPlayer.jsx'
 import SongInstructor from './SongInstructor.jsx'
+import ConfirmDialog from './ConfirmDialog.jsx'
 import './CurriculumRoadmap.css'
 
 // Which practice view drives each stage `type` (defaults to StagePractice).
@@ -54,6 +55,7 @@ function loadProgress() {
 export default function CurriculumRoadmap({ onBackHome }) {
   const [completedIds, setCompletedIds] = useState(loadProgress)
   const [activeStageId, setActiveStageId] = useState(null)
+  const [confirmReset, setConfirmReset] = useState(false)
 
   // Persist progress so the student keeps their place between visits.
   useEffect(() => {
@@ -78,9 +80,8 @@ export default function CurriculumRoadmap({ onBackHome }) {
   }
 
   function handleReset() {
-    if (window.confirm('Reset all progress? This cannot be undone.')) {
-      setCompletedIds([])
-    }
+    setCompletedIds([])
+    setConfirmReset(false)
   }
 
   const activeStage = STAGES.find((s) => s.id === activeStageId)
@@ -98,16 +99,14 @@ export default function CurriculumRoadmap({ onBackHome }) {
   const completedCount = completedIds.length
 
   return (
-    <section className="roadmap">
+    <section className="roadmap" dir="rtl" lang="he">
       <button type="button" className="roadmap__home" onClick={onBackHome}>
-        <span dir="rtl" lang="he">
-          ← חזרה למסך הבית
-        </span>
+        <span>← חזרה למסך הבית</span>
       </button>
       <header className="roadmap__header">
-        <h1 className="roadmap__title">Kamancheh Path</h1>
+        <h1 className="roadmap__title">מסלול הלימוד</h1>
         <p className="roadmap__subtitle">
-          {completedCount} of {STAGES.length} stages complete
+          {completedCount} מתוך {STAGES.length} שלבים הושלמו
         </p>
       </header>
 
@@ -130,8 +129,8 @@ export default function CurriculumRoadmap({ onBackHome }) {
                 className={`roadmap__node roadmap__node--${status}`}
                 onClick={() => unlocked && setActiveStageId(stage.id)}
                 disabled={locked}
-                aria-label={`Stage ${stage.number}: ${stage.title}${
-                  locked ? ' (locked)' : ''
+                aria-label={`שלב ${stage.number}: ${stage.title}${
+                  locked ? ' (נעול)' : ''
                 }`}
               >
                 <span className="roadmap__badge">
@@ -148,10 +147,10 @@ export default function CurriculumRoadmap({ onBackHome }) {
                   <span className="roadmap__node-summary">{stage.summary}</span>
                   <span className="roadmap__node-status">
                     {completed
-                      ? 'Completed · tap to revisit'
+                      ? 'הושלם · לחצו לחזרה'
                       : unlocked
-                        ? 'Tap to practice'
-                        : 'Locked'}
+                        ? 'לחצו כדי להתאמן'
+                        : 'נעול'}
                   </span>
                 </span>
               </button>
@@ -161,10 +160,25 @@ export default function CurriculumRoadmap({ onBackHome }) {
       </ol>
 
       {completedCount > 0 && (
-        <button type="button" className="roadmap__reset" onClick={handleReset}>
-          Reset progress
+        <button
+          type="button"
+          className="roadmap__reset"
+          onClick={() => setConfirmReset(true)}
+        >
+          איפוס התקדמות
         </button>
       )}
+
+      <ConfirmDialog
+        open={confirmReset}
+        title="לאפס את ההתקדמות?"
+        message="כל השלבים שהושלמו יימחקו ותתחילו מההתחלה. לא ניתן לבטל פעולה זו."
+        confirmLabel="איפוס"
+        cancelLabel="ביטול"
+        danger
+        onConfirm={handleReset}
+        onCancel={() => setConfirmReset(false)}
+      />
     </section>
   )
 }

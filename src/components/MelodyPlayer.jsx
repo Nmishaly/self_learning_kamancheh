@@ -40,20 +40,20 @@ export default function MelodyPlayer({ stage, onComplete, onExit }) {
   }
 
   return (
-    <section className="melody">
+    <section className="melody" dir="rtl" lang="he">
       <header className="melody__header">
         <button type="button" className="melody__back" onClick={onExit}>
-          ← Roadmap
+          → חזרה למסלול
         </button>
         <div className="melody__heading">
-          <span className="melody__stage-num">Stage {stage.number}</span>
+          <span className="melody__stage-num">שלב {stage.number}</span>
           <h1 className="melody__title">{stage.title}</h1>
           <p className="melody__summary">{stage.summary}</p>
         </div>
       </header>
 
       <div className="melody__progress">
-        {Math.min(index, melody.length)} / {melody.length} notes
+        {Math.min(index, melody.length)} / {melody.length} צלילים
       </div>
 
       <div className="melody__strip" ref={stripRef}>
@@ -76,9 +76,9 @@ export default function MelodyPlayer({ stage, onComplete, onExit }) {
       {finished ? (
         <div className="melody__done">
           <div className="melody__done-icon">♪</div>
-          <h2 className="melody__done-title">Melody complete!</h2>
+          <h2 className="melody__done-title">המנגינה הושלמה!</h2>
           <p className="melody__done-text">
-            You played the whole tune in tune. Stage 4 is done — congratulations!
+            ניגנתם את כל המנגינה בכוונון נקי. כל הכבוד!
           </p>
           <div className="melody__done-actions">
             <button
@@ -86,21 +86,21 @@ export default function MelodyPlayer({ stage, onComplete, onExit }) {
               className="melody__button melody__button--ghost"
               onClick={handleRestart}
             >
-              Play again
+              לנגן שוב
             </button>
             <button
               type="button"
               className="melody__button"
               onClick={() => onComplete(stage.id)}
             >
-              Back to Roadmap
+              חזרה למסלול
             </button>
           </div>
         </div>
       ) : (
         <>
           <p className="melody__cue">
-            Next note: <strong>{currentNote.label}</strong>
+            הצליל הבא: <strong>{currentNote.label}</strong>
           </p>
           <AudioTestbed
             target={currentNote}

@@ -31,8 +31,8 @@ export const STAGES = [
   {
     id: 'stage-1',
     number: 1,
-    title: 'Open Strings Stability',
-    summary: 'Bow each open string and hold a clean, steady pitch.',
+    title: 'יציבות במיתרים פתוחים',
+    summary: 'העבירו את הקשת על כל מיתר פתוח והחזיקו צליל נקי ויציב.',
     targets: [
       { id: 's1-a3', label: 'La / A', short: 'A3', frequency: 220.0 },
       { id: 's1-d4', label: 'Re / D', short: 'D4', frequency: 293.66 },
@@ -43,8 +43,8 @@ export const STAGES = [
   {
     id: 'stage-2',
     number: 2,
-    title: 'First Tetrachord on D',
-    summary: 'The first four rising notes from D: D – E – F♯ – G.',
+    title: 'הטטרקורד הראשון מ־רה',
+    summary: 'ארבעת הצלילים העולים הראשונים מ־רה: רה – מי – פה# – סול.',
     targets: [
       { id: 's2-d4', label: 'Re / D', short: 'D4', frequency: 293.66 },
       { id: 's2-e4', label: 'Mi / E', short: 'E4', frequency: 329.63 },
@@ -55,8 +55,8 @@ export const STAGES = [
   {
     id: 'stage-3',
     number: 3,
-    title: 'Mugham Shur Base',
-    summary: 'The Shur tetrachord with the microtonal E half-flat (koron).',
+    title: 'בסיס מוגאם שור',
+    summary: 'הטטרקורד של שור עם המי במול־מיקרוטונלי (קורון).',
     targets: [
       { id: 's3-d4', label: 'Re / D', short: 'D4', frequency: 293.66 },
       {
@@ -72,8 +72,8 @@ export const STAGES = [
   {
     id: 'stage-4',
     number: 4,
-    title: 'Traditional Melodies',
-    summary: 'Learn the Ajam / Mahur scale with your teacher’s methodology.',
+    title: 'מנגינות מסורתיות',
+    summary: 'לימוד הסולם אג׳ם / מהור על פי שיטת המורה.',
     // A "song" stage is driven by the SongInstructor, which carries its own
     // asset (Hebrew cues, fingering and technique checks). The Sarı Gelin
     // melody below is kept for the melody-player view and future songs.

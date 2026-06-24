@@ -207,8 +207,8 @@ export default function AudioTestbed({
     } catch (err) {
       setError(
         err && err.name === 'NotAllowedError'
-          ? 'Microphone access was denied. Please allow it and try again.'
-          : 'Could not start the microphone. Make sure the page is served over HTTPS or localhost.',
+          ? 'הגישה למיקרופון נחסמה. אפשרו אותה בהגדרות הדפדפן ונסו שוב.'
+          : 'לא הצלחנו להפעיל את המיקרופון. ודאו שהדף נטען בכתובת מאובטחת (https).',
       )
     }
   }
@@ -240,11 +240,11 @@ export default function AudioTestbed({
   const inTune = practiceMode && reading && Math.abs(reading.cents) <= IN_TUNE_CENTS
 
   return (
-    <section className="testbed">
+    <section className="testbed" dir="rtl" lang="he">
       {!practiceMode && (
         <header className="testbed__header">
-          <h1 className="testbed__title">Audio Testbed</h1>
-          <p className="testbed__subtitle">Pitch detection &amp; live waveform</p>
+          <h1 className="testbed__title">כוונת</h1>
+          <p className="testbed__subtitle">זיהוי גובה צליל וגל קול חי</p>
         </header>
       )}
 
@@ -273,24 +273,24 @@ export default function AudioTestbed({
                 )}
               </span>
               <span className="testbed__indicator-cents">
-                {reading.cents > 0 ? `+${reading.cents}` : reading.cents} cents
+                {reading.cents > 0 ? `+${reading.cents}` : reading.cents} סנט
               </span>
               {practiceMode && inTune && (
-                <span className="testbed__open-badge">In tune</span>
+                <span className="testbed__open-badge">מכוון!</span>
               )}
               {!practiceMode && reading.isOpenString && (
-                <span className="testbed__open-badge">Open string</span>
+                <span className="testbed__open-badge">מיתר פתוח</span>
               )}
             </>
           ) : (
             <span className="testbed__indicator-idle">
               {practiceMode
                 ? isListening
-                  ? `Play ${target.label}`
+                  ? `נגנו ${target.label}`
                   : target.label
                 : isListening
-                  ? 'Play a note…'
-                  : 'Not listening'}
+                  ? 'נגנו צליל…'
+                  : 'לא מאזין'}
             </span>
           )}
         </div>
@@ -315,7 +315,7 @@ export default function AudioTestbed({
 
       {!practiceMode && (
         <div className="testbed__strings">
-          <span className="testbed__strings-label">Open strings</span>
+          <span className="testbed__strings-label">מיתרים פתוחים</span>
           <div className="testbed__strings-list">
             {OPEN_STRINGS.map((s) => (
               <span
@@ -342,7 +342,7 @@ export default function AudioTestbed({
         className={`testbed__button ${isListening ? 'testbed__button--stop' : ''}`}
         onClick={isListening ? stopListening : startListening}
       >
-        {isListening ? 'Stop' : 'Enable Microphone'}
+        {isListening ? 'עצירה' : 'הפעלת מיקרופון'}
       </button>
     </section>
   )

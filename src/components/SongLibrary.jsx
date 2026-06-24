@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import SongInstructor from './SongInstructor.jsx'
+import VideoLesson from './VideoLesson.jsx'
 import { MAQAM_OPTIONS, DEFAULT_MAQAM } from '../data/maqams.js'
 import { decodeAndAnalyze } from '../audio/analyzeAudio.js'
+import { showToast } from '../ui/toast.js'
 import './SongLibrary.css'
 
 // The two library tabs.
@@ -10,44 +12,37 @@ const TABS = [
   { id: 'repertoire', label: 'רפרטואר ושירים' },
 ]
 
-// Hybrid seed data. The 15 teacher recordings are LOCAL assets (isLocal: true)
-// mapped to their video filenames and shown with an icon placeholder. YouTube
-// songs (isLocal: false) are added at runtime and fetch a remote thumbnail.
-// Every song carries a `maqam` (defaults to Ajam) used by the player.
-// NOTE: the filenames below are placeholders — swap in the real recordings.
+// Reject files larger than this to avoid very long in-browser analysis.
+const MAX_FILE_BYTES = 25 * 1024 * 1024 // 25 MB
+// The annotation endpoint accepts up to this many notes; skip enrichment above.
+const MAX_ANNOTATE_NOTES = 64
+
+// Local teacher recordings (LOCAL assets, isLocal: true) mapped to their video
+// filenames. Drop the real recordings into /public/videos and update the
+// filenames below. They open in the VideoLesson player (watch + slow-down +
+// loop) — no fabricated fingering overlay.
 const SEED_SONGS = [
   // ── תרגילי טכניקה (Technique exercises) ──
-  { id: 't1', category: 'technique', isLocal: true, file: 'PXL_20251121_084618183.mp4', title: 'מיתרים פתוחים — יציבות', subtitle: 'תרגיל בסיס', maqam: 'ajam' },
-  { id: 't2', category: 'technique', isLocal: true, file: 'PXL_20251121_085012001.mp4', title: 'תרגיל לגאטו', subtitle: 'חיבור צלילים', maqam: 'ajam' },
-  { id: 't3', category: 'technique', isLocal: true, file: 'PXL_20251121_085440552.mp4', title: 'תרגיל סטקאטו', subtitle: 'קשת קצרה', maqam: 'ajam' },
-  { id: 't4', category: 'technique', isLocal: true, file: 'PXL_20251121_090015874.mp4', title: 'סולם אג׳ם / מהור', subtitle: 'רה–רה', maqam: 'ajam' },
-  { id: 't5', category: 'technique', isLocal: true, file: 'PXL_20251121_090533210.mp4', title: 'סולם שור', subtitle: 'מי בחצי במול', maqam: 'shur' },
-  { id: 't6', category: 'technique', isLocal: true, file: 'PXL_20251121_091102447.mp4', title: 'תרגיל אצבעות 1–4', subtitle: 'כולל זרת', maqam: 'ajam' },
-  { id: 't7', category: 'technique', isLocal: true, file: 'PXL_20251121_091640989.mp4', title: 'תרגיל ויברטו', subtitle: 'יד שמאל', maqam: 'ajam' },
+  { id: 't1', category: 'technique', isLocal: true, file: 'PXL_20251121_084618183.mp4', title: 'מיתרים פתוחים — יציבות', subtitle: 'תרגיל בסיס' },
+  { id: 't2', category: 'technique', isLocal: true, file: 'PXL_20251121_085012001.mp4', title: 'תרגיל לגאטו', subtitle: 'חיבור צלילים' },
+  { id: 't3', category: 'technique', isLocal: true, file: 'PXL_20251121_085440552.mp4', title: 'תרגיל סטקאטו', subtitle: 'קשת קצרה' },
+  { id: 't4', category: 'technique', isLocal: true, file: 'PXL_20251121_090015874.mp4', title: 'סולם אג׳ם / מהור', subtitle: 'רה–רה' },
+  { id: 't5', category: 'technique', isLocal: true, file: 'PXL_20251121_090533210.mp4', title: 'סולם שור', subtitle: 'מי בחצי במול' },
+  { id: 't6', category: 'technique', isLocal: true, file: 'PXL_20251121_091102447.mp4', title: 'תרגיל אצבעות 1–4', subtitle: 'כולל זרת' },
+  { id: 't7', category: 'technique', isLocal: true, file: 'PXL_20251121_091640989.mp4', title: 'תרגיל ויברטו', subtitle: 'יד שמאל' },
 
   // ── רפרטואר ושירים (Repertoire & songs) ──
-  { id: 'r1', category: 'repertoire', isLocal: true, file: 'PXL_20251121_092230118.mp4', title: 'סארי גלין', subtitle: 'שיר עם', maqam: 'shur' },
-  { id: 'r2', category: 'repertoire', isLocal: true, file: 'PXL_20251121_092815776.mp4', title: 'אוזונדרה', subtitle: 'ריקוד אזרי', maqam: 'ajam' },
-  { id: 'r3', category: 'repertoire', isLocal: true, file: 'PXL_20251121_093401334.mp4', title: 'מוגאם שור — פתיחה', subtitle: 'אלתור', maqam: 'shur' },
-  { id: 'r4', category: 'repertoire', isLocal: true, file: 'PXL_20251121_093944902.mp4', title: 'רֶנְג אזרי', subtitle: 'קטע מקצבי', maqam: 'rast' },
-  { id: 'r5', category: 'repertoire', isLocal: true, file: 'PXL_20251121_094520561.mp4', title: 'טֶסְניף', subtitle: 'קטע שירה', maqam: 'ajam' },
-  { id: 'r6', category: 'repertoire', isLocal: true, file: 'PXL_20251121_095103188.mp4', title: 'שיר ערש אזרי', subtitle: 'מלודיה רכה', maqam: 'shur' },
-  { id: 'r7', category: 'repertoire', isLocal: true, file: 'PXL_20251121_095647725.mp4', title: 'ריקוד חתונה', subtitle: 'מסורתי', maqam: 'rast' },
-  { id: 'r8', category: 'repertoire', isLocal: true, file: 'PXL_20251121_100230443.mp4', title: 'נעימת סיום', subtitle: 'רפרטואר', maqam: 'ajam' },
+  { id: 'r1', category: 'repertoire', isLocal: true, file: 'PXL_20251121_092230118.mp4', title: 'סארי גלין', subtitle: 'שיר עם' },
+  { id: 'r2', category: 'repertoire', isLocal: true, file: 'PXL_20251121_092815776.mp4', title: 'אוזונדרה', subtitle: 'ריקוד אזרי' },
+  { id: 'r3', category: 'repertoire', isLocal: true, file: 'PXL_20251121_093401334.mp4', title: 'מוגאם שור — פתיחה', subtitle: 'אלתור' },
+  { id: 'r4', category: 'repertoire', isLocal: true, file: 'PXL_20251121_093944902.mp4', title: 'רֶנְג אזרי', subtitle: 'קטע מקצבי' },
+  { id: 'r5', category: 'repertoire', isLocal: true, file: 'PXL_20251121_094520561.mp4', title: 'טֶסְניף', subtitle: 'קטע שירה' },
+  { id: 'r6', category: 'repertoire', isLocal: true, file: 'PXL_20251121_095103188.mp4', title: 'שיר ערש אזרי', subtitle: 'מלודיה רכה' },
+  { id: 'r7', category: 'repertoire', isLocal: true, file: 'PXL_20251121_095647725.mp4', title: 'ריקוד חתונה', subtitle: 'מסורתי' },
+  { id: 'r8', category: 'repertoire', isLocal: true, file: 'PXL_20251121_100230443.mp4', title: 'נעימת סיום', subtitle: 'רפרטואר' },
 ]
 
-/** Extract an 11-character YouTube id from a URL (or a bare id). */
-function extractYouTubeId(input) {
-  const value = input.trim()
-  const match = value.match(
-    /(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|v\/|shorts\/))([\w-]{11})/,
-  )
-  if (match) return match[1]
-  if (/^[\w-]{11}$/.test(value)) return value // bare id pasted directly
-  return null
-}
-
-/** Local recordings show a tidy video icon instead of a remote image. */
+/** Local recordings / uploads show a tidy media icon instead of a remote image. */
 function LocalThumb() {
   return (
     <div className="library__thumb library__thumb--placeholder" aria-hidden="true">
@@ -61,139 +56,109 @@ function LocalThumb() {
   )
 }
 
-/** YouTube thumbnail with a graceful fallback if the image fails to load. */
-function YouTubeThumb({ youtubeId, alt }) {
-  const [failed, setFailed] = useState(false)
-  if (failed) return <LocalThumb />
-  return (
-    <img
-      className="library__thumb"
-      src={`https://img.youtube.com/vi/${youtubeId}/mqdefault.jpg`}
-      alt={alt}
-      loading="lazy"
-      onError={() => setFailed(true)}
-    />
-  )
+// Best-effort: ask the server to add Hebrew technique cues to the real,
+// transcribed notes. Never blocks the result — on any failure the notes are
+// returned unchanged. Aborts after 30s so the UI never hangs.
+async function enrichWithInstructions(notes, maqam) {
+  if (notes.length === 0 || notes.length > MAX_ANNOTATE_NOTES) return notes
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), 30_000)
+  const headers = { 'Content-Type': 'application/json' }
+  // Sent only if the deployment gates the endpoint with a shared token.
+  if (import.meta.env.VITE_APP_ACCESS_TOKEN) {
+    headers['x-app-token'] = import.meta.env.VITE_APP_ACCESS_TOKEN
+  }
+  try {
+    const res = await fetch('/api/annotate-notes', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        maqam,
+        notes: notes.map((n) => ({ time: n.time, note: n.note })),
+      }),
+      signal: controller.signal,
+    })
+    if (!res.ok) return notes
+    const data = await res.json()
+    const instructions = Array.isArray(data.instructions) ? data.instructions : []
+    return notes.map((n, i) => ({ ...n, instruction: instructions[i] || '' }))
+  } catch {
+    return notes // offline / timeout / error — play without cues
+  } finally {
+    clearTimeout(timer)
+  }
 }
 
 /**
- * Song library with two tabs. Lists local teacher recordings and YouTube songs
- * (added at runtime). Each card has a maqam dropdown; selecting a card opens the
- * SongInstructor player. `onBackHome` returns to the dashboard.
+ * Song library with two tabs. Lists local teacher recordings and any audio the
+ * user has uploaded and had transcribed. Selecting a card opens the right
+ * player: VideoLesson for recordings, SongInstructor for transcribed audio.
  */
 export default function SongLibrary({ onBackHome }) {
   const [activeTab, setActiveTab] = useState('technique')
   const [songs, setSongs] = useState(SEED_SONGS)
-  const [url, setUrl] = useState('')
-  const [addError, setAddError] = useState(null)
-  const [isAdding, setIsAdding] = useState(false)
-  const [isAnalyzing, setIsAnalyzing] = useState(false)
-  const [uploadError, setUploadError] = useState(null)
+  const [progress, setProgress] = useState(null) // null | 0..100 while analyzing
   const [selectedSong, setSelectedSong] = useState(null)
 
-  // Selecting a song launches the player for it.
+  // Selecting a song launches the right player for it.
   if (selectedSong) {
-    return (
+    return selectedSong.isLocal ? (
+      <VideoLesson song={selectedSong} onExit={() => setSelectedSong(null)} />
+    ) : (
       <SongInstructor song={selectedSong} onExit={() => setSelectedSong(null)} />
     )
   }
 
   const items = songs.filter((s) => s.category === activeTab)
+  const isAnalyzing = progress !== null
 
-  async function handleAdd(event) {
-    event.preventDefault()
-    const youtubeId = extractYouTubeId(url)
-    if (!youtubeId) {
-      setAddError('כתובת יוטיוב לא תקינה')
-      return
-    }
-
-    setIsAdding(true)
-    setAddError(null)
-
-    // Best-effort: fetch the real video title from YouTube's oEmbed endpoint.
-    let title = 'שיר מיוטיוב'
-    try {
-      const oembed = await fetch(
-        `https://www.youtube.com/oembed?format=json&url=https://www.youtube.com/watch?v=${youtubeId}`,
-      )
-      if (oembed.ok) {
-        const data = await oembed.json()
-        if (data.title) title = data.title
-      }
-    } catch {
-      // Title is optional — fall back to the default.
-    }
-
-    const maqam = DEFAULT_MAQAM // new YouTube songs default to the Ajam scale
-
-    // Ask the local backend (Claude) to translate the song into timed phrases.
-    let notes = null
-    try {
-      const response = await fetch('/api/translate-song', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, maqam }),
-      })
-      if (response.ok) {
-        const data = await response.json()
-        notes = data.notes
-      } else {
-        setAddError('התרגום נכשל — השיר נוסף ללא תווים')
-      }
-    } catch {
-      setAddError('אין חיבור לשרת — השיר נוסף ללא תווים')
-    }
-
-    const newSong = {
-      id: `yt-${youtubeId}-${Date.now()}`,
-      category: 'repertoire',
-      isLocal: false,
-      youtubeId,
-      title,
-      subtitle: youtubeId,
-      maqam,
-      notes, // generated phrase array, or null if the backend was unavailable
-    }
-    setSongs((prev) => [...prev, newSong])
-    setUrl('')
-    setIsAdding(false)
-  }
-
-  // Analyze a local audio file entirely in the browser (no server round-trip):
-  // decode it, run onset/beat/pitch detection, and store the resulting notes.
+  // Analyze a local audio file entirely in the browser: decode it, transcribe
+  // it to notes, optionally add Hebrew cues, and play back the ORIGINAL audio
+  // with the synced fingering overlay.
   async function handleFile(event) {
     const file = event.target.files && event.target.files[0]
     event.target.value = '' // allow re-selecting the same file later
     if (!file) return
 
-    setIsAnalyzing(true)
-    setUploadError(null)
+    if (file.size > MAX_FILE_BYTES) {
+      showToast('הקובץ גדול מדי (עד 25MB). נסו קובץ קצר יותר.', 'error')
+      return
+    }
+
+    setProgress(0)
     try {
       const arrayBuffer = await file.arrayBuffer()
-      const { bpm, notes } = await decodeAndAnalyze(arrayBuffer)
+      const { bpm, notes } = await decodeAndAnalyze(arrayBuffer, (f) =>
+        setProgress(Math.round(f * 100)),
+      )
       if (!notes || notes.length === 0) {
-        setUploadError('לא זוהו תווים בקובץ')
+        showToast('לא זוהו תווים בקובץ. נסו הקלטה ברורה יותר.', 'error')
         return
       }
+
+      const maqam = DEFAULT_MAQAM
+      const enriched = await enrichWithInstructions(notes, maqam)
+      const audioUrl = URL.createObjectURL(file)
+
       const newSong = {
         id: `file-${Date.now()}`,
         category: 'repertoire',
         isLocal: false,
         source: 'upload',
-        youtubeId: '',
+        audioUrl,
         title: file.name.replace(/\.[^.]+$/, ''),
-        subtitle: `${notes.length} תווים · ${bpm} BPM`,
-        maqam: DEFAULT_MAQAM,
+        subtitle: `${enriched.length} תווים · ${bpm} BPM`,
+        maqam,
         bpm,
-        notes,
+        notes: enriched,
       }
       setSongs((prev) => [...prev, newSong])
       setActiveTab('repertoire')
+      showToast('השיר נותח ונוסף לרפרטואר!', 'success')
     } catch {
-      setUploadError('לא ניתן לנתח את הקובץ — נסו קובץ שמע אחר')
+      showToast('לא ניתן לנתח את הקובץ — נסו קובץ שמע אחר.', 'error')
     } finally {
-      setIsAnalyzing(false)
+      setProgress(null)
     }
   }
 
@@ -232,29 +197,11 @@ export default function SongLibrary({ onBackHome }) {
       </div>
 
       {activeTab === 'repertoire' && (
-        <form className="library__add" onSubmit={handleAdd} dir="rtl" lang="he">
-          <input
-            className="library__add-input"
-            type="text"
-            inputMode="url"
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            placeholder="הדביקו כתובת יוטיוב"
-            disabled={isAdding}
-          />
-          <button type="submit" className="library__add-button" disabled={isAdding}>
-            {isAdding ? 'מתרגם…' : 'הוסף שיר מיוטיוב'}
-          </button>
-          {addError && <span className="library__add-error">{addError}</span>}
-        </form>
-      )}
-
-      {activeTab === 'repertoire' && (
         <div className="library__upload" dir="rtl" lang="he">
           <label
             className={`library__upload-button ${isAnalyzing ? 'is-busy' : ''}`}
           >
-            {isAnalyzing ? 'מנתח שמע…' : '📂 העלאת קובץ שמע'}
+            {isAnalyzing ? `מנתח שמע… ${progress}%` : '🎙️ העלאת הקלטה לתרגול'}
             <input
               type="file"
               accept="audio/*"
@@ -263,9 +210,17 @@ export default function SongLibrary({ onBackHome }) {
               disabled={isAnalyzing}
             />
           </label>
-          {uploadError && (
-            <span className="library__add-error">{uploadError}</span>
+          {isAnalyzing && (
+            <div className="library__upload-bar" aria-hidden="true">
+              <div
+                className="library__upload-bar-fill"
+                style={{ width: `${progress}%` }}
+              />
+            </div>
           )}
+          <p className="library__upload-hint">
+            העלו קובץ שמע (עד 25MB) והאפליקציה תזהה את התווים ותלמד אתכם לנגן אותם.
+          </p>
         </div>
       )}
 
@@ -277,39 +232,33 @@ export default function SongLibrary({ onBackHome }) {
               className="library__card-main"
               onClick={() => setSelectedSong(item)}
             >
-              {item.youtubeId ? (
-                <YouTubeThumb youtubeId={item.youtubeId} alt={item.title} />
-              ) : (
-                <LocalThumb />
-              )}
+              <LocalThumb />
               <div className="library__card-body" dir="rtl" lang="he">
                 <span className="library__card-title">{item.title}</span>
                 <span className="library__card-sub">{item.subtitle}</span>
               </div>
               <span className="library__card-status">
-                {item.source === 'upload'
-                  ? 'שמע'
-                  : item.isLocal
-                    ? 'מקומי'
-                    : 'יוטיוב'}
+                {item.source === 'upload' ? 'הקלטה' : 'וידאו'}
               </span>
             </button>
 
-            {/* Maqam dropdown — change the scale used by the player. */}
-            <label className="library__maqam" dir="rtl" lang="he">
-              <span className="library__maqam-label">מקאם</span>
-              <select
-                className="library__maqam-select"
-                value={item.maqam}
-                onChange={(e) => updateMaqam(item.id, e.target.value)}
-              >
-                {MAQAM_OPTIONS.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.label}
-                  </option>
-                ))}
-              </select>
-            </label>
+            {/* Maqam dropdown — only meaningful for transcribed uploads. */}
+            {item.source === 'upload' && (
+              <label className="library__maqam" dir="rtl" lang="he">
+                <span className="library__maqam-label">מקאם</span>
+                <select
+                  className="library__maqam-select"
+                  value={item.maqam}
+                  onChange={(e) => updateMaqam(item.id, e.target.value)}
+                >
+                  {MAQAM_OPTIONS.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
           </li>
         ))}
       </ul>

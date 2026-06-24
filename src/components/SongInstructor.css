@@ -36,6 +36,14 @@
   color: var(--text-dim);
 }
 
+.song__hint {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  color: var(--text-dim);
+  text-align: center;
+}
+
 .song__synth {
   position: relative;
   display: flex;
