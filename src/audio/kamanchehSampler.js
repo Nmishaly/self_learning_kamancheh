@@ -8,8 +8,10 @@
 
 export const SAMPLE_MANIFEST = [
   { frequency: 293.66, url: '/samples/kamancheh/D4.wav' }, // Re
+  { frequency: 349.23, url: '/samples/kamancheh/F4.wav' }, // Fa
   { frequency: 392.0, url: '/samples/kamancheh/G4.wav' }, // Sol
   { frequency: 440.0, url: '/samples/kamancheh/A4.wav' }, // La
+  { frequency: 523.25, url: '/samples/kamancheh/C5.wav' }, // Do
   { frequency: 587.33, url: '/samples/kamancheh/D5.wav' }, // Re (octave)
 ]
 
