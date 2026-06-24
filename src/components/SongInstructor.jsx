@@ -7,7 +7,13 @@ import {
   totalDuration,
   indexAtTime,
   phraseStartsEvery,
+  applyOpenStringPreference,
 } from '../audio/steps.js'
+import {
+  createRhythmEngine,
+  AZERBAIJANI_RHYTHMS,
+  DEFAULT_RHYTHM,
+} from '../audio/azerbaijaniRhythms.js'
 import FingeringGuide from './FingeringGuide.jsx'
 import './SongInstructor.css'
 
@@ -95,6 +101,10 @@ export default function SongInstructor({ stage, song, onComplete, onExit }) {
     phraseStarts = maqam.phraseStarts
   }
 
+  // Let La (A4) ring on the open A string where the phrase calls for it instead
+  // of always forcing the 4th finger on the D string.
+  steps = applyOpenStringPreference(steps, phraseStarts)
+
   const total = totalDuration(steps)
 
   const headerLabel = song ? song.title : `שלב ${stage.number} · ${maqam.nameHe}`
@@ -106,6 +116,13 @@ export default function SongInstructor({ stage, song, onComplete, onExit }) {
   const [loop, setLoop] = useState(false)
   // 'kamancheh' = synth rendition of the notes · 'original' = the recording.
   const [playbackMode, setPlaybackMode] = useState('kamancheh')
+  // Traditional Azerbaijani rhythmic accompaniment (off by default).
+  const [backing, setBacking] = useState(false)
+  const [rhythmId, setRhythmId] = useState(DEFAULT_RHYTHM)
+
+  // Backing-track tempo: the transcribed song's BPM if known, else a sensible
+  // default groove. Scaled by the practice speed so slowing down slows the beat.
+  const backingBpm = (song && song.bpm) || 92
 
   // The original recording drives the clock only when explicitly selected; in
   // every other case (the default for uploads, and all synth scales/melodies)
@@ -115,6 +132,7 @@ export default function SongInstructor({ stage, song, onComplete, onExit }) {
 
   const audioCtxRef = useRef(null)
   const samplerRef = useRef(null)
+  const rhythmEngineRef = useRef(null)
   const rafRef = useRef(null)
   const startWallRef = useRef(0) // real-time anchor: ctx.currentTime at the seek point
   const seekRef = useRef(0) // song-time position (seconds) at the anchor
@@ -129,6 +147,7 @@ export default function SongInstructor({ stage, song, onComplete, onExit }) {
   useEffect(() => {
     return () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current)
+      if (rhythmEngineRef.current) rhythmEngineRef.current.stop()
       if (audioCtxRef.current) audioCtxRef.current.close()
     }
   }, [])
@@ -143,8 +162,21 @@ export default function SongInstructor({ stage, song, onComplete, onExit }) {
       audioCtxRef.current = new Ctx()
       samplerRef.current = createKamanchehSampler(audioCtxRef.current)
       samplerRef.current.load().catch(() => {})
+      rhythmEngineRef.current = createRhythmEngine(audioCtxRef.current)
     }
     return audioCtxRef.current
+  }
+
+  // Start/stop the rhythmic accompaniment, tied to the current tempo so slowing
+  // down the practice speed also slows the groove.
+  function startBacking() {
+    const ctx = ensureCtx()
+    if (ctx.state === 'suspended') ctx.resume()
+    rhythmEngineRef.current.start(backingBpm * speedRef.current, rhythmId)
+  }
+
+  function stopBacking() {
+    if (rhythmEngineRef.current) rhythmEngineRef.current.stop()
   }
 
   // A bowed-string (Kamancheh) synth voice (only used when there's no real
@@ -354,6 +386,7 @@ export default function SongInstructor({ stage, song, onComplete, onExit }) {
       startWallRef.current = ctx.currentTime
     }
 
+    if (backing) startBacking()
     setIsPlaying(true)
     stopLoop()
     rafRef.current = requestAnimationFrame(frame)
@@ -362,12 +395,14 @@ export default function SongInstructor({ stage, song, onComplete, onExit }) {
   function pause() {
     if (isSynth) seekRef.current = currentElapsed()
     stopLoop()
+    stopBacking()
     if (hasAudio && audioElRef.current) audioElRef.current.pause()
     setIsPlaying(false)
   }
 
   function finishPlayback() {
     stopLoop()
+    stopBacking()
     if (hasAudio && audioElRef.current) audioElRef.current.pause()
     seekRef.current = total
     setIsPlaying(false)
@@ -391,6 +426,28 @@ export default function SongInstructor({ stage, song, onComplete, onExit }) {
     }
     speedRef.current = value
     setSpeed(value)
+    if (rhythmEngineRef.current && rhythmEngineRef.current.isPlaying()) {
+      rhythmEngineRef.current.setBpm(backingBpm * value)
+    }
+  }
+
+  // Toggle the Azerbaijani backing track. If enabled mid-playback, start it now;
+  // if disabled, stop it immediately.
+  function toggleBacking() {
+    const next = !backing
+    setBacking(next)
+    if (next) {
+      if (isPlaying) startBacking()
+    } else {
+      stopBacking()
+    }
+  }
+
+  function changeRhythm(id) {
+    setRhythmId(id)
+    if (rhythmEngineRef.current && rhythmEngineRef.current.isPlaying()) {
+      rhythmEngineRef.current.start(backingBpm * speedRef.current, id)
+    }
   }
 
   // Switch how an uploaded song is played (Kamancheh synth vs. the original
@@ -532,6 +589,32 @@ export default function SongInstructor({ stage, song, onComplete, onExit }) {
         >
           🔁 חזרה על משפט
         </button>
+      </div>
+
+      {/* Traditional Azerbaijani rhythmic accompaniment (Yalli / Shalaho / …) */}
+      <div className="song__practice song__backing" dir="rtl" lang="he">
+        <button
+          type="button"
+          className={`song__loop ${backing ? 'song__loop--active' : ''}`}
+          aria-pressed={backing}
+          onClick={toggleBacking}
+        >
+          🥁 ליווי מקצבי
+        </button>
+        <label className="song__backing-select-wrap">
+          <span className="song__backing-label">מקצב</span>
+          <select
+            className="song__backing-select"
+            value={rhythmId}
+            onChange={(e) => changeRhythm(e.target.value)}
+          >
+            {AZERBAIJANI_RHYTHMS.map((r) => (
+              <option key={r.id} value={r.id}>
+                {r.nameHe} · {r.meter}
+              </option>
+            ))}
+          </select>
+        </label>
       </div>
 
       {/* Progress + transport controls */}

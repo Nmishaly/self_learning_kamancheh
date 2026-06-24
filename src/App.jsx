@@ -2,6 +2,7 @@ import { useState } from 'react'
 import Dashboard from './components/Dashboard.jsx'
 import CurriculumRoadmap from './components/CurriculumRoadmap.jsx'
 import SongLibrary from './components/SongLibrary.jsx'
+import CallResponseTrainer from './components/CallResponseTrainer.jsx'
 import Welcome from './components/Welcome.jsx'
 import ErrorBoundary from './components/ErrorBoundary.jsx'
 import Toaster from './components/Toaster.jsx'
@@ -41,6 +42,7 @@ export default function App() {
             {view === 'home' && <Dashboard onNavigate={setView} />}
             {view === 'curriculum' && <CurriculumRoadmap onBackHome={goHome} />}
             {view === 'library' && <SongLibrary onBackHome={goHome} />}
+            {view === 'callresponse' && <CallResponseTrainer onExit={goHome} />}
           </>
         )}
       </main>
