@@ -13,10 +13,34 @@
 // fast and offline-friendly; on-device persistence always works regardless.
 
 const META_KEY = 'kamancheh-recordings'
+const DEVICE_KEY = 'kamancheh-device-id'
 const DB_NAME = 'kamancheh-recordings'
 const STORE = 'blobs'
 
 const cloudEnabled = import.meta.env.VITE_ENABLE_BLOB === 'true'
+
+// A long, random, per-device id used to scope cloud recordings to THIS browser
+// (see api/recordings.js). It is an unguessable bearer capability — uploads,
+// listing and deletion are confined to `recordings/<deviceId>/…`, so one
+// visitor can never reach another's recordings. Generated once and persisted;
+// returns null if storage is unavailable (then cloud upload is simply skipped).
+function getDeviceId() {
+  try {
+    let id = localStorage.getItem(DEVICE_KEY)
+    if (!id) {
+      const raw =
+        (typeof crypto !== 'undefined' && crypto.randomUUID && crypto.randomUUID()) ||
+        `${Date.now()}-${Math.random().toString(36).slice(2)}-${Math.random()
+          .toString(36)
+          .slice(2)}`
+      id = raw.replace(/[^a-zA-Z0-9_-]/g, '')
+      localStorage.setItem(DEVICE_KEY, id)
+    }
+    return id
+  } catch {
+    return null
+  }
+}
 
 // ── IndexedDB (on-device audio blobs) ───────────────────────────────────────
 
@@ -91,15 +115,19 @@ function saveMeta(list) {
 
 async function uploadToCloud(id, file, meta) {
   if (!cloudEnabled) return null
+  // Without a device id we can't scope the upload, so skip cloud and keep the
+  // on-device copy only.
+  const deviceId = getDeviceId()
+  if (!deviceId) return null
   try {
     // Imported lazily so the Blob client is only pulled in when actually used.
     const { upload } = await import('@vercel/blob/client')
-    const headers = {}
+    const headers = { 'x-device-id': deviceId }
     if (import.meta.env.VITE_APP_ACCESS_TOKEN) {
       headers['x-app-token'] = import.meta.env.VITE_APP_ACCESS_TOKEN
     }
     const safeName = (file.name || 'recording').replace(/[^\w.\-]+/g, '_')
-    const result = await upload(`recordings/${id}-${safeName}`, file, {
+    const result = await upload(`recordings/${deviceId}/${id}-${safeName}`, file, {
       access: 'public',
       handleUploadUrl: '/api/recordings',
       contentType: file.type || 'application/octet-stream',
@@ -179,6 +207,8 @@ export async function deleteRecording(id) {
   if (record && record.cloudUrl && cloudEnabled) {
     try {
       const headers = { 'Content-Type': 'application/json' }
+      const deviceId = getDeviceId()
+      if (deviceId) headers['x-device-id'] = deviceId
       if (import.meta.env.VITE_APP_ACCESS_TOKEN) {
         headers['x-app-token'] = import.meta.env.VITE_APP_ACCESS_TOKEN
       }
