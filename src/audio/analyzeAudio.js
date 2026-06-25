@@ -163,7 +163,12 @@ function estimateBpm(flux, frameRate) {
 
 /** Adaptive peak-picking over the onset envelope → onset times (seconds). */
 function pickOnsets(flux, frameRate) {
-  const max = Math.max(...flux) || 1
+  // NB: compute the max with a loop, not `Math.max(...flux)` — a multi-minute
+  // recording yields >100k flux frames, and spreading that many arguments
+  // overflows the call stack (RangeError), failing the whole upload.
+  let max = 0
+  for (let i = 0; i < flux.length; i++) if (flux[i] > max) max = flux[i]
+  if (max === 0) max = 1
   const norm = flux.map((v) => v / max)
   const avgWin = Math.round(0.15 * frameRate)
   const minGap = Math.max(1, Math.round(0.12 * frameRate))
